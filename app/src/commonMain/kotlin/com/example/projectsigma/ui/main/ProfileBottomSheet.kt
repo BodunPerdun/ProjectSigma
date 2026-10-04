@@ -1,6 +1,7 @@
 package com.example.projectsigma.ui.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -19,7 +19,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -41,6 +40,7 @@ import com.example.projectsigma.model.User
 fun ProfileBottomSheet(
     user: User,
     userEvents: List<Event>,
+    onEventClick: (eventId: String) -> Unit = {},
     onDismissRequest: () -> Unit,
     onLogoutClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -148,7 +148,7 @@ fun ProfileBottomSheet(
 
             if (userEvents.isEmpty()) {
                 Text(
-                    text = "You haven't created any events yet. Tap the '+' pin button on the map to add your first event!",
+                    text = "You haven't created any events yet. Tap empty map space to add your first event!",
                     style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray),
                     modifier = Modifier.padding(vertical = 16.dp)
                 )
@@ -163,7 +163,12 @@ fun ProfileBottomSheet(
                         Card(
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onEventClick(event.id)
+                                    onDismissRequest()
+                                }
                         ) {
                             Row(
                                 modifier = Modifier

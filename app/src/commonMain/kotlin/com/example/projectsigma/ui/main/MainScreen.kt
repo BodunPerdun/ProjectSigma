@@ -68,6 +68,7 @@ fun MainScreen(
                 onMarkerClick = { eventId -> mainViewModel.onMarkerClick(eventId) },
                 onClusterClick = { cluster -> mainViewModel.onClusterClick(cluster) },
                 onMapClick = { lat, lng -> mainViewModel.onMapClick(lat, lng) },
+                onZoomChanged = { zoom -> mainViewModel.onZoomChanged(zoom) },
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -164,6 +165,7 @@ fun MainScreen(
                 ProfileBottomSheet(
                     user = currentUser!!,
                     userEvents = mainViewModel.getUserCreatedEvents(),
+                    onEventClick = { eventId -> mainViewModel.onMarkerClick(eventId) },
                     onDismissRequest = { mainViewModel.closeProfile() },
                     onLogoutClick = { authViewModel.logout() }
                 )

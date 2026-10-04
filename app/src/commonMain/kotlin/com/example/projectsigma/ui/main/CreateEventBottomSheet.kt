@@ -3,9 +3,11 @@ package com.example.projectsigma.ui.main
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -34,11 +36,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.projectsigma.model.EventCategory
+import com.example.projectsigma.ui.components.AsyncEventImage
+import com.example.projectsigma.ui.components.GalleryImagePickerButton
 import kotlin.math.round
 
 private fun round4(value: Double): Double = round(value * 10000.0) / 10000.0
@@ -52,6 +59,7 @@ fun CreateEventBottomSheet(
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val haptic = LocalHapticFeedback.current
 
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -66,15 +74,6 @@ fun CreateEventBottomSheet(
 
     val datePickerState = rememberDatePickerState()
     val timePickerState = rememberTimePickerState(initialHour = 19, initialMinute = 0)
-
-    // Preset high-quality photos for fast attachment
-    val presetPhotos = listOf(
-        "🎉 Party" to "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600",
-        "🍕 Food" to "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600",
-        "⚽ Sports" to "https://images.unsplash.com/photo-1517649763962-0c623266010b?w=600",
-        "🎨 Art" to "https://images.unsplash.com/photo-1536924940846-227afb31e2a5?w=600",
-        "👥 Meetup" to "https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=600"
-    )
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -165,7 +164,7 @@ fun CreateEventBottomSheet(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Photo Attachment Section
+            // Photo Attachment Section (Clean Gallery Photo Picker)
             Text(
                 text = "Attach Event Cover Photo",
                 fontSize = 14.sp,
@@ -175,27 +174,25 @@ fun CreateEventBottomSheet(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                presetPhotos.forEach { (label, url) ->
-                    val selected = photoUrl == url
-                    FilterChip(
-                        selected = selected,
-                        onClick = { photoUrl = if (selected) null else url },
-                        label = { Text(label) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
-                        )
+            GalleryImagePickerButton(
+                onImagePicked = { pickedUri ->
+                    photoUrl = pickedUri
+                }
+            )
+
+            photoUrl?.let { url ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                ) {
+                    AsyncEventImage(
+                        url = url,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
-            }
-
-            if (photoUrl != null) {
-                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -232,12 +229,13 @@ fun CreateEventBottomSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Submit Button
+            // Submit Button with Haptic Feedback
             Button(
                 onClick = {
                     if (title.isBlank()) {
                         errorMessage = "Event title is required."
                     } else {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onCreateEvent(title, description, selectedCategory, dateTime, photoUrl)
                         onDismissRequest()
                     }

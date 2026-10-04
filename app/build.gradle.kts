@@ -29,6 +29,8 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.material)
             implementation(libs.maplibre.android)
+            implementation(libs.maplibre.annotation)
+            implementation(libs.coil.compose)
             implementation(compose.preview)
         }
         commonMain.dependencies {

@@ -12,6 +12,7 @@ actual fun MapLibreMapContainer(
     onMarkerClick: (eventId: String) -> Unit,
     onClusterClick: (cluster: EventCluster) -> Unit,
     onMapClick: (latitude: Double, longitude: Double) -> Unit,
+    onZoomChanged: (zoom: Int) -> Unit,
     modifier: Modifier
 ) {
 }

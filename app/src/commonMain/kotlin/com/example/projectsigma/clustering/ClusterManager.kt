@@ -10,11 +10,24 @@ object ClusterManager {
 
     /**
      * Clusters events based on zoom level.
-     * Higher zoom levels (e.g. 15-18) result in smaller cluster radius (individual pins).
-     * Lower zoom levels (e.g. 5-10) result in larger cluster radius (grouped pins with counts).
+     * Zoom >= 14: Distance threshold is near-zero (~10 meters), so events separate into individual pins.
+     * Zoom < 14: Nearby events group into clusters with count badges.
      */
-    fun clusterEvents(events: List<Event>, zoomLevel: Int = 13): List<EventCluster> {
+    fun clusterEvents(events: List<Event>, zoomLevel: Int = 15): List<EventCluster> {
         if (events.isEmpty()) return emptyList()
+
+        // If zoom is street-level (>= 14), disable clustering and return individual events
+        if (zoomLevel >= 14) {
+            return events.map { event ->
+                EventCluster(
+                    id = "single_${event.id}",
+                    latitude = event.latitude,
+                    longitude = event.longitude,
+                    count = 1,
+                    events = listOf(event)
+                )
+            }
+        }
 
         // Calculate grid cell threshold in degrees based on zoom level
         val thresholdDegrees = calculateThreshold(zoomLevel)
@@ -62,12 +75,11 @@ object ClusterManager {
 
     private fun calculateThreshold(zoomLevel: Int): Double {
         return when {
-            zoomLevel >= 16 -> 0.0005
-            zoomLevel >= 14 -> 0.003
-            zoomLevel >= 12 -> 0.015
-            zoomLevel >= 10 -> 0.05
-            zoomLevel >= 8  -> 0.2
-            else -> 0.8
+            zoomLevel >= 13 -> 0.002   // ~200 meters
+            zoomLevel >= 11 -> 0.010   // ~1 km
+            zoomLevel >= 9  -> 0.040   // ~4 km
+            zoomLevel >= 7  -> 0.150   // ~15 km
+            else -> 0.500
         }
     }
 

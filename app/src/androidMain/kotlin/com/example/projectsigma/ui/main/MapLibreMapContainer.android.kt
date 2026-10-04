@@ -23,19 +23,20 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.EventCluster
+import com.google.gson.JsonPrimitive
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.maplibre.android.MapLibre
-import org.maplibre.android.annotations.Icon
-import org.maplibre.android.annotations.IconFactory
-import org.maplibre.android.annotations.Marker
-import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.plugins.annotation.SymbolManager
+import org.maplibre.android.plugins.annotation.SymbolOptions
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 
-// Commercial-grade vector style: OpenFreeMap Positron (clean, neutral, non-cartoonish Uber-style palette)
 private const val PRIMARY_COMMERCIAL_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
 
 @Composable
@@ -45,6 +46,7 @@ actual fun MapLibreMapContainer(
     onMarkerClick: (eventId: String) -> Unit,
     onClusterClick: (cluster: EventCluster) -> Unit,
     onMapClick: (latitude: Double, longitude: Double) -> Unit,
+    onZoomChanged: (zoom: Int) -> Unit,
     modifier: Modifier
 ) {
     val context = LocalContext.current
@@ -55,7 +57,11 @@ actual fun MapLibreMapContainer(
     }
 
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
-    val markerIdMap = remember { mutableMapOf<Marker, String>() }
+    var symbolManager by remember { mutableStateOf<SymbolManager?>(null) }
+    var isStyleLoaded by remember { mutableStateOf(false) }
+
+    // Timestamp tracker to prevent map click from opening "Create Event" when tapping markers
+    var lastSymbolTapTime by remember { mutableStateOf(0L) }
 
     val mapView = remember {
         MapView(context).apply {
@@ -75,9 +81,38 @@ actual fun MapLibreMapContainer(
                 map.uiSettings.isCompassEnabled = false
 
                 map.setStyle(PRIMARY_COMMERCIAL_STYLE_URL) { style ->
-                    Log.d("MapLibreMapContainer", "Commercial style loaded successfully!")
+                    Log.d("MapLibreMapContainer", "Style loaded successfully!")
 
-                    // Filter out commercial POI clutter while preserving house numbers and street address labels
+                    // Initialize SymbolManager ONLY AFTER style is fully loaded
+                    val manager = SymbolManager(this, map, style)
+                    manager.iconAllowOverlap = true
+                    manager.iconIgnorePlacement = true
+
+                    // Register Click Listener ONCE on SymbolManager using native JsonPrimitive symbol data
+                    manager.addClickListener { clickedSymbol ->
+                        lastSymbolTapTime = System.currentTimeMillis()
+                        val rawDataId = clickedSymbol.data?.asString
+                        Log.d("MapLibreMapContainer", "Symbol clicked with data ID: $rawDataId")
+
+                        if (rawDataId != null) {
+                            if (rawDataId.startsWith("cluster_")) {
+                                val clusterId = rawDataId.substringAfter("cluster_")
+                                val clusterMatch = clusters.find { it.id == clusterId }
+                                if (clusterMatch != null) {
+                                    onClusterClick(clusterMatch)
+                                }
+                            } else if (rawDataId.startsWith("single_")) {
+                                val eventId = rawDataId.substringAfter("single_")
+                                onMarkerClick(eventId)
+                            }
+                        }
+                        true
+                    }
+
+                    symbolManager = manager
+                    isStyleLoaded = true
+
+                    // Filter out commercial POI clutter while preserving house numbers & street address labels
                     style.layers.forEach { layer ->
                         val layerId = layer.id.lowercase()
                         val isAddressOrBuilding = layerId.contains("house") ||
@@ -102,16 +137,30 @@ actual fun MapLibreMapContainer(
                     }
                 }
 
-                // Initial camera setup set to street-level zoom (15.0)
+                // Initial camera setup
                 map.cameraPosition = CameraPosition.Builder()
-                    .target(LatLng(51.5074, -0.1278)) // City Center
-                    .zoom(15.0)                       // Street-level detail
-                    .tilt(15.0)                       // Subtle 3D perspective for building footprints
+                    .target(LatLng(51.5074, -0.1278))
+                    .zoom(15.0)
+                    .tilt(15.0)
                     .build()
 
+                // Listen to camera zoom idle changes to dynamically re-cluster / un-cluster
+                map.addOnCameraIdleListener {
+                    val currentZoomInt = map.cameraPosition.zoom.toInt()
+                    onZoomChanged(currentZoomInt)
+                }
+
                 map.addOnMapClickListener { point ->
+                    val now = System.currentTimeMillis()
+                    // Guard: Ignore map click if a symbol marker was tapped within the last 350ms
+                    if (now - lastSymbolTapTime < 350) {
+                        Log.d("MapLibreMapContainer", "Map click ignored because symbol marker was tapped recently")
+                        return@addOnMapClickListener false
+                    }
+
+                    Log.d("MapLibreMapContainer", "Empty map space tapped at Lat: ${point.latitude}, Lng: ${point.longitude}")
                     onMapClick(point.latitude, point.longitude)
-                    true
+                    false
                 }
             }
         }
@@ -134,67 +183,34 @@ actual fun MapLibreMapContainer(
         }
     }
 
-    // Dynamic marker re-rendering on data updates
-    LaunchedEffect(mapLibreMap, clusters, selectedEvent) {
+    // Dynamic Symbol rendering strictly on Main thread after style is fully loaded
+    LaunchedEffect(isStyleLoaded, symbolManager, clusters, selectedEvent) {
+        if (!isStyleLoaded) return@LaunchedEffect
+        val manager = symbolManager ?: return@LaunchedEffect
         val map = mapLibreMap ?: return@LaunchedEffect
 
-        map.clear()
-        markerIdMap.clear()
+        withContext(Dispatchers.Main) {
+            updateSymbolAnnotations(
+                context = context,
+                map = map,
+                manager = manager,
+                clusters = clusters,
+                selectedEvent = selectedEvent
+            )
 
-        for (cluster in clusters) {
-            if (cluster.count == 1) {
-                val event = cluster.events.firstOrNull() ?: continue
-                val isSelected = event.id == selectedEvent?.id
-
-                val customIcon = createBitmapIcon(
-                    context = context,
-                    text = event.category.iconName,
-                    hexColor = event.category.colorHex,
-                    isCluster = false,
-                    isSelected = isSelected
+            // Smooth Camera Fly-To on event selection / creation
+            selectedEvent?.let { event ->
+                Log.d("MapLibreMapContainer", "Camera easing to created/selected event at Lat: ${event.latitude}, Lng: ${event.longitude}")
+                map.easeCamera(
+                    CameraUpdateFactory.newCameraPosition(
+                        CameraPosition.Builder()
+                            .target(LatLng(event.latitude, event.longitude))
+                            .zoom(15.5)
+                            .build()
+                    ),
+                    1000
                 )
-
-                val marker = map.addMarker(
-                    MarkerOptions()
-                        .position(LatLng(event.latitude, event.longitude))
-                        .title(event.title)
-                        .snippet(event.dateTime)
-                        .icon(customIcon)
-                )
-                markerIdMap[marker] = event.id
-            } else {
-                val isSelected = cluster.events.any { it.id == selectedEvent?.id }
-
-                val customIcon = createBitmapIcon(
-                    context = context,
-                    text = "${cluster.count}",
-                    hexColor = "#3F51B5",
-                    isCluster = true,
-                    isSelected = isSelected
-                )
-
-                val marker = map.addMarker(
-                    MarkerOptions()
-                        .position(LatLng(cluster.latitude, cluster.longitude))
-                        .title("${cluster.count} Events Cluster")
-                        .snippet("Tap to view events")
-                        .icon(customIcon)
-                )
-                markerIdMap[marker] = cluster.id
             }
-        }
-
-        map.setOnMarkerClickListener { clickedMarker ->
-            val id = markerIdMap[clickedMarker]
-            if (id != null) {
-                val clusterMatch = clusters.find { it.id == id }
-                if (clusterMatch != null && clusterMatch.count > 1) {
-                    onClusterClick(clusterMatch)
-                } else {
-                    onMarkerClick(id)
-                }
-            }
-            true
         }
     }
 
@@ -204,14 +220,84 @@ actual fun MapLibreMapContainer(
     )
 }
 
-private fun createBitmapIcon(
+private fun updateSymbolAnnotations(
+    context: Context,
+    map: MapLibreMap,
+    manager: SymbolManager,
+    clusters: List<EventCluster>,
+    selectedEvent: Event?
+) {
+    val style = map.style ?: return
+
+    manager.deleteAll()
+
+    val currentZoomLevel = map.cameraPosition.zoom
+    val iconScale = (currentZoomLevel / 15.0).toFloat().coerceIn(0.7f, 1.4f)
+    val optionsList = mutableListOf<SymbolOptions>()
+
+    for (cluster in clusters) {
+        if (cluster.count == 1) {
+            val event = cluster.events.firstOrNull() ?: continue
+            val isSelected = event.id == selectedEvent?.id
+
+            val rawBitmap = createRawBitmapIcon(
+                context = context,
+                text = event.category.iconName,
+                hexColor = event.category.colorHex,
+                isCluster = false,
+                isSelected = isSelected
+            )
+
+            val imageId = "img_evt_${event.id}_${isSelected}"
+            style.addImage(imageId, rawBitmap)
+
+            val options = SymbolOptions()
+                .withLatLng(LatLng(event.latitude, event.longitude))
+                .withIconImage(imageId)
+                .withIconSize(iconScale)
+                .withIconAnchor(Property.ICON_ANCHOR_CENTER)
+                .withData(JsonPrimitive("single_${event.id}"))
+
+            optionsList.add(options)
+        } else {
+            val isSelected = cluster.events.any { it.id == selectedEvent?.id }
+
+            val rawBitmap = createRawBitmapIcon(
+                context = context,
+                text = "${cluster.count}",
+                hexColor = "#3F51B5",
+                isCluster = true,
+                isSelected = isSelected
+            )
+
+            val imageId = "img_cls_${cluster.id}_${isSelected}"
+            style.addImage(imageId, rawBitmap)
+
+            val options = SymbolOptions()
+                .withLatLng(LatLng(cluster.latitude, cluster.longitude))
+                .withIconImage(imageId)
+                .withIconSize(iconScale)
+                .withIconAnchor(Property.ICON_ANCHOR_CENTER)
+                .withData(JsonPrimitive("cluster_${cluster.id}"))
+
+            optionsList.add(options)
+        }
+    }
+
+    // Batch create symbol annotations on MapLibre GPU layer
+    manager.create(optionsList)
+}
+
+private fun createRawBitmapIcon(
     context: Context,
     text: String,
     hexColor: String,
     isCluster: Boolean,
     isSelected: Boolean
-): Icon {
-    val size = if (isCluster) 110 else 90
+): Bitmap {
+    val baseSize = if (isCluster) 110 else 90
+    val size = baseSize
+
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
 
@@ -252,5 +338,5 @@ private fun createBitmapIcon(
     val yPos = (size / 2f) - ((textPaint.descent() + textPaint.ascent()) / 2f)
     canvas.drawText(text, size / 2f, yPos, textPaint)
 
-    return IconFactory.getInstance(context).fromBitmap(bitmap)
+    return bitmap
 }
