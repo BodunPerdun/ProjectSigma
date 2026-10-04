@@ -11,8 +11,10 @@ data class Event(
     val latitude: Double,
     val longitude: Double,
     val dateTime: String,
+    val photoUrl: String? = null,
     val createdById: String,
     val createdByName: String,
     val createdByAvatarUrl: String? = null,
+    val participants: List<User> = emptyList(),
     val createdAtTimestamp: Long = 0L
 )

@@ -20,7 +20,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -47,6 +46,7 @@ fun MainScreen(
 ) {
     val clusters by mainViewModel.clusters.collectAsState()
     val selectedEvent by mainViewModel.selectedEvent.collectAsState()
+    val selectedCluster by mainViewModel.selectedCluster.collectAsState()
     val selectedCategory by mainViewModel.selectedCategory.collectAsState()
     val isProfileOpen by mainViewModel.isProfileOpen.collectAsState()
     val isCreateEventOpen by mainViewModel.isCreateEventOpen.collectAsState()
@@ -54,33 +54,15 @@ fun MainScreen(
     val currentUser by authViewModel.currentUser.collectAsState()
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { mainViewModel.openCreateEventForm() },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.padding(bottom = 16.dp, end = 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "📍", fontSize = 18.sp)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Add Pin", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-            }
-        }
+        modifier = modifier.fillMaxSize()
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Full screen OpenStreetMap view
-            OsmMapContainer(
+            // Full screen MapLibre GL Native Map view
+            MapLibreMapContainer(
                 clusters = clusters,
                 selectedEvent = selectedEvent,
                 onMarkerClick = { eventId -> mainViewModel.onMarkerClick(eventId) },
@@ -191,15 +173,26 @@ fun MainScreen(
                 CreateEventBottomSheet(
                     location = newPinLocation!!,
                     onDismissRequest = { mainViewModel.closeCreateEventForm() },
-                    onCreateEvent = { title, desc, cat, dateTime ->
-                        mainViewModel.createEvent(title, desc, cat, dateTime)
+                    onCreateEvent = { title, desc, cat, dateTime, photoUrl ->
+                        mainViewModel.createEvent(title, desc, cat, dateTime, photoUrl)
                     }
+                )
+            }
+
+            selectedCluster?.let { cluster ->
+                ClusterEventsBottomSheet(
+                    cluster = cluster,
+                    onEventClick = { eventId -> mainViewModel.onMarkerClick(eventId) },
+                    onDismissRequest = { mainViewModel.dismissEventDetails() }
                 )
             }
 
             selectedEvent?.let { event ->
                 EventDetailsBottomSheet(
                     event = event,
+                    currentUserId = currentUser?.id,
+                    onJoinClick = { eventId -> mainViewModel.joinEvent(eventId) },
+                    onLeaveClick = { eventId -> mainViewModel.leaveEvent(eventId) },
                     onDismissRequest = { mainViewModel.dismissEventDetails() }
                 )
             }

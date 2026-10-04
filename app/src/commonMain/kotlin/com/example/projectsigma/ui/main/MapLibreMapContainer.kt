@@ -6,11 +6,11 @@ import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.EventCluster
 
 @Composable
-expect fun OsmMapContainer(
+expect fun MapLibreMapContainer(
     clusters: List<EventCluster>,
     selectedEvent: Event?,
     onMarkerClick: (eventId: String) -> Unit,
     onClusterClick: (cluster: EventCluster) -> Unit,
     onMapClick: (latitude: Double, longitude: Double) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier
 )

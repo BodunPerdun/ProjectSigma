@@ -93,6 +93,7 @@ class MainViewModel(
         _selectedEvent.value = null
         _selectedCluster.value = null
         _newPinLocation.value = Pair(lat, lng)
+        _isCreateEventOpen.value = true // Opens "Create event here" bottom sheet on tap
     }
 
     fun openCreateEventForm(lat: Double = 51.5074, lng: Double = -0.1278) {
@@ -110,26 +111,47 @@ class MainViewModel(
         title: String,
         description: String,
         category: EventCategory,
-        dateTime: String
+        dateTime: String,
+        photoUrl: String? = null
     ) {
         val user = authRepository.currentUser.value ?: return
         val location = _newPinLocation.value ?: Pair(51.5074, -0.1278)
 
-        eventsRepository.createEvent(
+        val newEvent = eventsRepository.createEvent(
             title = title,
             description = description,
             category = category,
             latitude = location.first,
             longitude = location.second,
             dateTime = dateTime,
+            photoUrl = photoUrl,
             user = user
         )
+
+        // Select the newly created event to show its details sheet and pin on map!
+        _selectedEvent.value = newEvent
 
         // Update user's event count in auth state
         val userEvents = eventsRepository.getEventsByUser(user.id)
         authRepository.updateUserEventCount(userEvents.size)
 
         closeCreateEventForm()
+    }
+
+    fun joinEvent(eventId: String) {
+        val user = authRepository.currentUser.value ?: return
+        val updated = eventsRepository.joinEvent(eventId, user)
+        if (updated != null) {
+            _selectedEvent.value = updated
+        }
+    }
+
+    fun leaveEvent(eventId: String) {
+        val user = authRepository.currentUser.value ?: return
+        val updated = eventsRepository.leaveEvent(eventId, user.id)
+        if (updated != null) {
+            _selectedEvent.value = updated
+        }
     }
 
     fun openProfile() {

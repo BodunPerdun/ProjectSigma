@@ -28,6 +28,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
             implementation(libs.material)
+            implementation(libs.maplibre.android)
             implementation(compose.preview)
         }
         commonMain.dependencies {
