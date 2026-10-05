@@ -1,24 +1,42 @@
-package com.example.projectsigma.data
+package com.example.projectsigma.data.local
 
+import android.content.Context
+import android.util.Log
+import com.example.projectsigma.data.EventsRepository
 import com.example.projectsigma.getEpochMillis
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.EventCategory
 import com.example.projectsigma.model.User
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
-class LocalEventsRepositoryImpl : EventsRepository {
+class RoomEventsRepositoryImpl(context: Context) : EventsRepository {
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        encodeDefaults = true
+    }
+
+    private val db = AppDatabase.getDatabase(context)
+    private val eventDao = db.eventDao()
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     private val sampleUser1 = User("usr_alex", "alex@example.com", "Alex Smith", eventsCount = 3)
     private val sampleUser2 = User("usr_maria", "maria@example.com", "Maria Garcia", eventsCount = 1)
     private val sampleUser3 = User("usr_david", "david@example.com", "David Chen", eventsCount = 4)
 
-    private val initialEvents = listOf(
+    private val sampleEvents = listOf(
         Event(
             id = "evt_1",
             title = "Open Air Jazz Festival",
@@ -78,8 +96,26 @@ class LocalEventsRepositoryImpl : EventsRepository {
         )
     )
 
-    private val _events = MutableStateFlow(initialEvents)
+    private val _events = MutableStateFlow<List<Event>>(sampleEvents)
     override val eventsFlow: StateFlow<List<Event>> = _events.asStateFlow()
+
+    init {
+        scope.launch {
+            try {
+                eventDao.getAllEvents().collect { entities ->
+                    if (entities.isEmpty()) {
+                        // Populate initial Room database with sample events
+                        val initialEntities = sampleEvents.map { it.toEntity(isSynced = true, status = "SYNCED") }
+                        eventDao.insertEvents(initialEntities)
+                    } else {
+                        _events.value = entities.map { it.toDomainModel() }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("RoomEventsRepo", "Error collecting Room events: ${e.message}")
+            }
+        }
+    }
 
     override fun createEvent(
         title: String,
@@ -106,7 +142,17 @@ class LocalEventsRepositoryImpl : EventsRepository {
             participants = listOf(user),
             createdAtTimestamp = getEpochMillis()
         )
-        _events.value = listOf(newEvent) + _events.value
+
+        scope.launch {
+            try {
+                eventDao.insertEvent(newEvent.toEntity(isSynced = false, status = "PENDING_PUSH"))
+            } catch (e: Exception) {
+                Log.e("RoomEventsRepo", "Error inserting event: ${e.message}")
+            }
+        }
+
+        val currentList = _events.value
+        _events.value = listOf(newEvent) + currentList
         return newEvent
     }
 
@@ -131,6 +177,15 @@ class LocalEventsRepositoryImpl : EventsRepository {
             )
             currentList[index] = updatedEvent
             _events.value = currentList
+
+            scope.launch {
+                try {
+                    eventDao.insertEvent(updatedEvent.toEntity(isSynced = false, status = "PENDING_UPDATE"))
+                } catch (e: Exception) {
+                    Log.e("RoomEventsRepo", "Error updating event: ${e.message}")
+                }
+            }
+
             return updatedEvent
         }
         return null
@@ -141,14 +196,31 @@ class LocalEventsRepositoryImpl : EventsRepository {
         val removed = currentList.removeAll { it.id == eventId }
         if (removed) {
             _events.value = currentList
+            scope.launch {
+                try {
+                    eventDao.deleteEvent(eventId)
+                } catch (e: Exception) {
+                    Log.e("RoomEventsRepo", "Error deleting event: ${e.message}")
+                }
+            }
         }
         return removed
     }
 
     override fun purgeExpiredEvents() {
-        val currentList = _events.value.filterNot { isEventExpired(it.dateTime) }
-        if (currentList.size != _events.value.size) {
-            _events.value = currentList
+        val expiredEvents = _events.value.filter { isEventExpired(it.dateTime) }
+        if (expiredEvents.isNotEmpty()) {
+            val expiredIds = expiredEvents.map { it.id }
+            val freshList = _events.value.filterNot { expiredIds.contains(it.id) }
+            _events.value = freshList
+
+            scope.launch {
+                try {
+                    eventDao.deleteEventsByIds(expiredIds)
+                } catch (e: Exception) {
+                    Log.e("RoomEventsRepo", "Error purging expired events: ${e.message}")
+                }
+            }
         }
     }
 
@@ -188,6 +260,15 @@ class LocalEventsRepositoryImpl : EventsRepository {
                 val updatedEvent = event.copy(participants = updatedParticipants)
                 currentList[index] = updatedEvent
                 _events.value = currentList
+
+                scope.launch {
+                    try {
+                        eventDao.insertEvent(updatedEvent.toEntity(isSynced = false, status = "PENDING_UPDATE"))
+                    } catch (e: Exception) {
+                        Log.e("RoomEventsRepo", "Error joining event: ${e.message}")
+                    }
+                }
+
                 return updatedEvent
             }
         }
@@ -203,6 +284,15 @@ class LocalEventsRepositoryImpl : EventsRepository {
             val updatedEvent = event.copy(participants = updatedParticipants)
             currentList[index] = updatedEvent
             _events.value = currentList
+
+            scope.launch {
+                try {
+                    eventDao.insertEvent(updatedEvent.toEntity(isSynced = false, status = "PENDING_UPDATE"))
+                } catch (e: Exception) {
+                    Log.e("RoomEventsRepo", "Error leaving event: ${e.message}")
+                }
+            }
+
             return updatedEvent
         }
         return null
@@ -210,5 +300,61 @@ class LocalEventsRepositoryImpl : EventsRepository {
 
     override fun getEventsByUser(userId: String): List<Event> {
         return _events.value.filter { it.createdById == userId }
+    }
+
+    private fun Event.toEntity(isSynced: Boolean, status: String): EventEntity {
+        val serializedParticipants = try {
+            json.encodeToString(participants)
+        } catch (_: Exception) {
+            "[]"
+        }
+
+        return EventEntity(
+            id = id,
+            title = title,
+            description = description,
+            categoryName = category.name,
+            latitude = latitude,
+            longitude = longitude,
+            dateTime = dateTime,
+            photoUrl = photoUrl,
+            createdById = createdById,
+            createdByName = createdByName,
+            createdByAvatarUrl = createdByAvatarUrl,
+            createdAtTimestamp = createdAtTimestamp,
+            participantsJson = serializedParticipants,
+            isSynced = isSynced,
+            syncStatus = status
+        )
+    }
+
+    private fun EventEntity.toDomainModel(): Event {
+        val cat = try {
+            EventCategory.valueOf(categoryName)
+        } catch (_: Exception) {
+            EventCategory.MEETUP
+        }
+
+        val parsedParticipants = try {
+            json.decodeFromString<List<User>>(participantsJson)
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        return Event(
+            id = id,
+            title = title,
+            description = description,
+            category = cat,
+            latitude = latitude,
+            longitude = longitude,
+            dateTime = dateTime,
+            photoUrl = photoUrl,
+            createdById = createdById,
+            createdByName = createdByName,
+            createdByAvatarUrl = createdByAvatarUrl,
+            participants = parsedParticipants,
+            createdAtTimestamp = createdAtTimestamp
+        )
     }
 }

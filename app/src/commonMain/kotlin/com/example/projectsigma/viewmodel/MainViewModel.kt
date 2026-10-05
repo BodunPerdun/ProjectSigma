@@ -8,11 +8,14 @@ import com.example.projectsigma.model.EventCategory
 import com.example.projectsigma.model.EventCluster
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.seconds
 
 class MainViewModel(
     private val eventsRepository: EventsRepository,
@@ -51,6 +54,14 @@ class MainViewModel(
     val clusters: StateFlow<List<EventCluster>> = _clusters.asStateFlow()
 
     init {
+        // Automatic periodic ticker running every 5 seconds to instantly purge past events
+        scope.launch {
+            while (isActive) {
+                eventsRepository.purgeExpiredEvents()
+                delay(5.seconds)
+            }
+        }
+
         scope.launch {
             combine(
                 eventsRepository.eventsFlow,
@@ -171,6 +182,16 @@ class MainViewModel(
         _editingEvent.value = null
         _isCreateEventOpen.value = false
         _newPinLocation.value = null
+    }
+
+    fun deleteEvent(eventId: String) {
+        val user = authRepository.currentUser.value
+        eventsRepository.deleteEvent(eventId)
+        if (user != null) {
+            val userEvents = eventsRepository.getEventsByUser(user.id)
+            authRepository.updateUserEventCount(userEvents.size)
+        }
+        dismissEventDetails()
     }
 
     fun joinEvent(eventId: String) {

@@ -18,17 +18,15 @@ import com.example.projectsigma.ui.splash.SplashScreen
 import com.example.projectsigma.viewmodel.AuthViewModel
 import com.example.projectsigma.viewmodel.MainViewModel
 
-object AppDependencies {
-    val authRepository: AuthRepository = LocalAuthRepositoryImpl()
-    val eventsRepository: EventsRepository = LocalEventsRepositoryImpl()
-}
-
 @Composable
-fun App() {
+fun App(
+    eventsRepository: EventsRepository = remember { LocalEventsRepositoryImpl() },
+    authRepository: AuthRepository = remember { LocalAuthRepositoryImpl() }
+) {
     var isSplashVisible by remember { mutableStateOf(true) }
 
-    val authViewModel = remember { AuthViewModel(AppDependencies.authRepository) }
-    val mainViewModel = remember { MainViewModel(AppDependencies.eventsRepository, AppDependencies.authRepository) }
+    val authViewModel = remember(authRepository) { AuthViewModel(authRepository) }
+    val mainViewModel = remember(eventsRepository, authRepository) { MainViewModel(eventsRepository, authRepository) }
 
     val currentUser by authViewModel.currentUser.collectAsState()
 

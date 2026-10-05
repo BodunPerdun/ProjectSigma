@@ -25,6 +25,8 @@ interface EventsRepository {
         dateTime: String,
         photoUrl: String?
     ): Event?
+    fun deleteEvent(eventId: String): Boolean
+    fun purgeExpiredEvents()
     fun joinEvent(eventId: String, user: User): Event?
     fun leaveEvent(eventId: String, userId: String): Event?
     fun getEventsByUser(userId: String): List<Event>

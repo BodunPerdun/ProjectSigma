@@ -31,6 +31,8 @@ kotlin {
             implementation(libs.maplibre.android)
             implementation(libs.maplibre.annotation)
             implementation(libs.coil.compose)
+            implementation(libs.androidx.room.runtime)
+            implementation(libs.androidx.room.ktx)
             implementation(compose.preview)
         }
         commonMain.dependencies {

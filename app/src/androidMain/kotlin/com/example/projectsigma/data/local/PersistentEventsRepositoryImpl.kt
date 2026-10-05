@@ -1,24 +1,45 @@
-package com.example.projectsigma.data
+package com.example.projectsigma.data.local
 
+import android.content.Context
+import android.util.Log
+import com.example.projectsigma.data.EventsRepository
 import com.example.projectsigma.getEpochMillis
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.EventCategory
 import com.example.projectsigma.model.User
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.File
 
-class LocalEventsRepositoryImpl : EventsRepository {
+class PersistentEventsRepositoryImpl(private val context: Context) : EventsRepository {
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        encodeDefaults = true
+    }
+
+    private val eventsFile: File by lazy {
+        File(context.filesDir, "persistent_social_map_events.json")
+    }
+
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     private val sampleUser1 = User("usr_alex", "alex@example.com", "Alex Smith", eventsCount = 3)
     private val sampleUser2 = User("usr_maria", "maria@example.com", "Maria Garcia", eventsCount = 1)
     private val sampleUser3 = User("usr_david", "david@example.com", "David Chen", eventsCount = 4)
 
-    private val initialEvents = listOf(
+    private val initialSampleEvents = listOf(
         Event(
             id = "evt_1",
             title = "Open Air Jazz Festival",
@@ -78,8 +99,47 @@ class LocalEventsRepositoryImpl : EventsRepository {
         )
     )
 
-    private val _events = MutableStateFlow(initialEvents)
+    private val _events = MutableStateFlow<List<Event>>(emptyList())
     override val eventsFlow: StateFlow<List<Event>> = _events.asStateFlow()
+
+    init {
+        loadEventsFromDisk()
+    }
+
+    private fun loadEventsFromDisk() {
+        try {
+            if (eventsFile.exists()) {
+                val fileContent = eventsFile.readText()
+                if (fileContent.isNotBlank()) {
+                    val loaded = json.decodeFromString<List<Event>>(fileContent)
+                    val activeEvents = loaded.filterNot { isEventExpired(it.dateTime) }
+                    _events.value = activeEvents
+                    saveEventsToDisk(activeEvents)
+                    Log.d("PersistentRepo", "Successfully loaded ${activeEvents.size} active events from disk")
+                    return
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("PersistentRepo", "Error reading events from disk: ${e.message}")
+        }
+
+        // Default: save initial sample events if file doesn't exist
+        val activeInitial = initialSampleEvents.filterNot { isEventExpired(it.dateTime) }
+        _events.value = activeInitial
+        saveEventsToDisk(activeInitial)
+    }
+
+    private fun saveEventsToDisk(list: List<Event>) {
+        scope.launch {
+            try {
+                val jsonString = json.encodeToString(list)
+                eventsFile.writeText(jsonString)
+                Log.d("PersistentRepo", "Successfully saved ${list.size} events to disk")
+            } catch (e: Exception) {
+                Log.e("PersistentRepo", "Error saving events to disk: ${e.message}")
+            }
+        }
+    }
 
     override fun createEvent(
         title: String,
@@ -106,7 +166,10 @@ class LocalEventsRepositoryImpl : EventsRepository {
             participants = listOf(user),
             createdAtTimestamp = getEpochMillis()
         )
-        _events.value = listOf(newEvent) + _events.value
+
+        val updatedList = listOf(newEvent) + _events.value
+        _events.value = updatedList
+        saveEventsToDisk(updatedList)
         return newEvent
     }
 
@@ -131,6 +194,7 @@ class LocalEventsRepositoryImpl : EventsRepository {
             )
             currentList[index] = updatedEvent
             _events.value = currentList
+            saveEventsToDisk(currentList)
             return updatedEvent
         }
         return null
@@ -141,38 +205,48 @@ class LocalEventsRepositoryImpl : EventsRepository {
         val removed = currentList.removeAll { it.id == eventId }
         if (removed) {
             _events.value = currentList
+            saveEventsToDisk(currentList)
         }
         return removed
     }
 
     override fun purgeExpiredEvents() {
-        val currentList = _events.value.filterNot { isEventExpired(it.dateTime) }
-        if (currentList.size != _events.value.size) {
-            _events.value = currentList
+        val expiredEvents = _events.value.filter { isEventExpired(it.dateTime) }
+        if (expiredEvents.isNotEmpty()) {
+            val expiredIds = expiredEvents.map { it.id }
+            val freshList = _events.value.filterNot { expiredIds.contains(it.id) }
+            _events.value = freshList
+            saveEventsToDisk(freshList)
+            Log.d("PersistentRepo", "Auto-purged ${expiredEvents.size} expired events from map & disk")
         }
     }
 
     private fun isEventExpired(dateTimeStr: String): Boolean {
         return try {
-            val datePart = dateTimeStr.substringBefore(" ").trim()
-            val timePart = dateTimeStr.substringAfter(" ").trim()
-            val endStr = if (timePart.contains("-")) timePart.substringAfter("-").trim() else timePart
-
-            val dateComponents = datePart.split(".")
-            if (dateComponents.size < 3) return false
-            val day = dateComponents[0].toInt()
-            val month = dateComponents[1].toInt()
-            val year = dateComponents[2].toInt()
-
-            val timeComponents = endStr.split(":")
-            val endHour = timeComponents[0].toInt()
-            val endMin = timeComponents.getOrNull(1)?.toInt() ?: 0
-
-            val ldt = LocalDateTime(year, month, day, endHour, endMin)
-            val endInstant = ldt.toInstant(TimeZone.currentSystemDefault())
             val nowInstant = Clock.System.now()
 
-            endInstant < nowInstant
+            if (dateTimeStr.contains(".")) {
+                val datePart = dateTimeStr.substringBefore(" ").trim()
+                val timePart = dateTimeStr.substringAfter(" ").trim()
+                val endStr = if (timePart.contains("-")) timePart.substringAfter("-").trim() else timePart
+
+                val dateComponents = datePart.split(".")
+                if (dateComponents.size >= 3) {
+                    val day = dateComponents[0].toInt()
+                    val month = dateComponents[1].toInt()
+                    val year = dateComponents[2].toInt()
+
+                    val timeComponents = endStr.split(":")
+                    val endHour = timeComponents[0].toInt()
+                    val endMin = timeComponents.getOrNull(1)?.toInt() ?: 0
+
+                    val ldt = LocalDateTime(year, month, day, endHour, endMin)
+                    val endInstant = ldt.toInstant(TimeZone.currentSystemDefault())
+
+                    return endInstant <= nowInstant
+                }
+            }
+            false
         } catch (_: Exception) {
             false
         }
@@ -188,6 +262,7 @@ class LocalEventsRepositoryImpl : EventsRepository {
                 val updatedEvent = event.copy(participants = updatedParticipants)
                 currentList[index] = updatedEvent
                 _events.value = currentList
+                saveEventsToDisk(currentList)
                 return updatedEvent
             }
         }
@@ -203,6 +278,7 @@ class LocalEventsRepositoryImpl : EventsRepository {
             val updatedEvent = event.copy(participants = updatedParticipants)
             currentList[index] = updatedEvent
             _events.value = currentList
+            saveEventsToDisk(currentList)
             return updatedEvent
         }
         return null

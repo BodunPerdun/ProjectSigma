@@ -202,6 +202,7 @@ fun MainScreen(
                     onJoinClick = { eventId -> mainViewModel.joinEvent(eventId) },
                     onLeaveClick = { eventId -> mainViewModel.leaveEvent(eventId) },
                     onEditClick = { evt -> mainViewModel.openEditEventForm(evt) },
+                    onDeleteClick = { eventId -> mainViewModel.deleteEvent(eventId) },
                     onDismissRequest = { mainViewModel.dismissEventDetails() }
                 )
             }

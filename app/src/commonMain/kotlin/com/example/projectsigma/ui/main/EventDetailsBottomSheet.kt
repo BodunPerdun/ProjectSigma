@@ -58,6 +58,7 @@ fun EventDetailsBottomSheet(
     onJoinClick: (eventId: String) -> Unit,
     onLeaveClick: (eventId: String) -> Unit,
     onEditClick: (Event) -> Unit = {},
+    onDeleteClick: (eventId: String) -> Unit = {},
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -312,23 +313,48 @@ fun EventDetailsBottomSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Event Owner Edit Option
+            // Event Owner Edit & Delete Options
             if (isOwner) {
-                OutlinedButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onEditClick(event)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(25.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "✏️ Edit Event Details",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    OutlinedButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onEditClick(event)
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(25.dp)
+                    ) {
+                        Text(
+                            text = "✏️ Edit Details",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onDeleteClick(event.id)
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(25.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text(
+                            text = "🗑️ Delete Pin",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
             }

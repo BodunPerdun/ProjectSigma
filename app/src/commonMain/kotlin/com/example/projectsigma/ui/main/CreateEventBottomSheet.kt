@@ -47,10 +47,14 @@ import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.EventCategory
 import com.example.projectsigma.ui.components.AsyncEventImage
 import com.example.projectsigma.ui.components.GalleryImagePickerButton
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import kotlin.math.round
+import kotlin.time.Duration.Companion.minutes
 
 private fun round4(value: Double): Double = round(value * 10000.0) / 10000.0
 
@@ -72,20 +76,32 @@ fun CreateEventBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val haptic = LocalHapticFeedback.current
 
+    // Dynamically calculate current device moment defaults
+    val nowLdt = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
+    val defaultDay = nowLdt.dayOfMonth.toString().padStart(2, '0')
+    val defaultMonth = nowLdt.monthNumber.toString().padStart(2, '0')
+    val defaultYear = nowLdt.year
+    val defaultDateString = "$defaultDay.$defaultMonth.$defaultYear"
+
+    val defaultStartHour = nowLdt.hour
+    val defaultStartMinute = nowLdt.minute
+    val defaultEndHour = (nowLdt.hour + 1) % 24
+    val defaultEndMinute = nowLdt.minute
+
     var title by remember { mutableStateOf(eventToEdit?.title ?: "") }
     var description by remember { mutableStateOf(eventToEdit?.description ?: "") }
     var selectedCategory by remember { mutableStateOf(eventToEdit?.category ?: EventCategory.MEETUP) }
     var photoUrl by remember { mutableStateOf<String?>(eventToEdit?.photoUrl) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Separated Date and Hour States
-    var selectedDateText by remember { mutableStateOf("05.10.2026") }
-    var startHour by remember { mutableStateOf(19) }
-    var startMinute by remember { mutableStateOf(0) }
-    var endHour by remember { mutableStateOf(21) }
-    var endMinute by remember { mutableStateOf(0) }
+    // Separated Date and Hour States with Dynamic Current Device Time Defaults
+    var selectedDateText by remember { mutableStateOf(defaultDateString) }
+    var startHour by remember { mutableStateOf(defaultStartHour) }
+    var startMinute by remember { mutableStateOf(defaultStartMinute) }
+    var endHour by remember { mutableStateOf(defaultEndHour) }
+    var endMinute by remember { mutableStateOf(defaultEndMinute) }
 
-    // Parse initial dateTime if editing
+    // Parse initial dateTime if editing an existing event
     remember(eventToEdit) {
         if (eventToEdit != null && eventToEdit.dateTime.contains(" ")) {
             val parts = eventToEdit.dateTime.split(" ")
@@ -120,10 +136,31 @@ fun CreateEventBottomSheet(
 
     val isEditing = eventToEdit != null
 
-    // Validation: Total Minutes Comparison
+    // Validation 1: Hours Interval Order (Start < End)
     val startTotalMinutes = startHour * 60 + startMinute
     val endTotalMinutes = endHour * 60 + endMinute
     val isTimeIntervalValid = endTotalMinutes > startTotalMinutes
+
+    // Validation 2: Past Time Prevention (Start time cannot be in the past)
+    val isStartInPast = remember(selectedDateText, startHour, startMinute) {
+        try {
+            val dateParts = selectedDateText.split(".")
+            if (dateParts.size >= 3) {
+                val day = dateParts[0].toInt()
+                val month = dateParts[1].toInt()
+                val year = dateParts[2].toInt()
+                val selectedLdt = LocalDateTime(year, month, day, startHour, startMinute)
+                val selectedInstant = selectedLdt.toInstant(TimeZone.currentSystemDefault())
+                val nowInstant = Clock.System.now()
+                // Allow 2 minute grace buffer for real-time form filling
+                selectedInstant < (nowInstant - 2.minutes)
+            } else false
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    val isFormValid = isTimeIntervalValid && !isStartInPast && title.isNotBlank()
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -194,13 +231,36 @@ fun CreateEventBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // SEPARATED FIELD 1: Date Field (Entire Box Clickable)
-            Text(
-                text = "Event Date",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.DarkGray
-            )
+            // SEPARATED FIELD 1: Date Field
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Event Date",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.DarkGray
+                )
+
+                if (isStartInPast) {
+                    TextButton(onClick = {
+                        val currentLdt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+                        val d = currentLdt.dayOfMonth.toString().padStart(2, '0')
+                        val m = currentLdt.monthNumber.toString().padStart(2, '0')
+                        val y = currentLdt.year
+                        selectedDateText = "$d.$m.$y"
+                        startHour = currentLdt.hour
+                        startMinute = currentLdt.minute
+                        endHour = (currentLdt.hour + 1) % 24
+                        endMinute = currentLdt.minute
+                    }) {
+                        Text("⚡ Reset to Now", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(4.dp))
 
             Box(
@@ -215,9 +275,10 @@ fun CreateEventBottomSheet(
                     singleLine = true,
                     readOnly = true,
                     enabled = false,
+                    isError = isStartInPast,
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                         disabledTextColor = Color.Unspecified,
-                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledBorderColor = if (isStartInPast) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
                         disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     modifier = Modifier.fillMaxWidth(),
@@ -230,7 +291,7 @@ fun CreateEventBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // SEPARATED FIELD 2 & 3: Hours Interval Fields (Entire Boxes Clickable)
+            // SEPARATED FIELD 2 & 3: Hours Interval Fields
             Text(
                 text = "Event Time Interval (Hours)",
                 fontSize = 14.sp,
@@ -256,9 +317,10 @@ fun CreateEventBottomSheet(
                         singleLine = true,
                         readOnly = true,
                         enabled = false,
+                        isError = isStartInPast,
                         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                             disabledTextColor = Color.Unspecified,
-                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledBorderColor = if (isStartInPast) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
                             disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                         ),
                         modifier = Modifier.fillMaxWidth(),
@@ -297,8 +359,16 @@ fun CreateEventBottomSheet(
                 }
             }
 
-            // Inline Validation Warning
-            if (!isTimeIntervalValid) {
+            // Inline Validation Warnings
+            if (isStartInPast) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "⚠️ Selected Start Time is in the past! Tap 'Reset to Now' or pick a future time.",
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            } else if (!isTimeIntervalValid) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "⚠️ End hour (${formatTime(endHour, endMinute)}) cannot be earlier than or equal to Start hour (${formatTime(startHour, startMinute)})",
@@ -380,6 +450,8 @@ fun CreateEventBottomSheet(
                 onClick = {
                     if (title.isBlank()) {
                         errorMessage = "Event title is required."
+                    } else if (isStartInPast) {
+                        errorMessage = "Start time cannot be in the past."
                     } else if (!isTimeIntervalValid) {
                         errorMessage = "End hour must be later than Start hour."
                     } else {
@@ -389,7 +461,7 @@ fun CreateEventBottomSheet(
                         onDismissRequest()
                     }
                 },
-                enabled = isTimeIntervalValid && title.isNotBlank(),
+                enabled = isFormValid,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
