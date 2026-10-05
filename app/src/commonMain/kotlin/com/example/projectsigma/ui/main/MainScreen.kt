@@ -48,6 +48,7 @@ fun MainScreen(
     val selectedEvent by mainViewModel.selectedEvent.collectAsState()
     val selectedCluster by mainViewModel.selectedCluster.collectAsState()
     val selectedCategory by mainViewModel.selectedCategory.collectAsState()
+    val editingEvent by mainViewModel.editingEvent.collectAsState()
     val isProfileOpen by mainViewModel.isProfileOpen.collectAsState()
     val isCreateEventOpen by mainViewModel.isCreateEventOpen.collectAsState()
     val newPinLocation by mainViewModel.newPinLocation.collectAsState()
@@ -174,9 +175,14 @@ fun MainScreen(
             if (isCreateEventOpen && newPinLocation != null) {
                 CreateEventBottomSheet(
                     location = newPinLocation!!,
+                    eventToEdit = editingEvent,
                     onDismissRequest = { mainViewModel.closeCreateEventForm() },
                     onCreateEvent = { title, desc, cat, dateTime, photoUrl ->
-                        mainViewModel.createEvent(title, desc, cat, dateTime, photoUrl)
+                        if (editingEvent != null) {
+                            mainViewModel.updateEvent(title, desc, cat, dateTime, photoUrl)
+                        } else {
+                            mainViewModel.createEvent(title, desc, cat, dateTime, photoUrl)
+                        }
                     }
                 )
             }
@@ -195,6 +201,7 @@ fun MainScreen(
                     currentUserId = currentUser?.id,
                     onJoinClick = { eventId -> mainViewModel.joinEvent(eventId) },
                     onLeaveClick = { eventId -> mainViewModel.leaveEvent(eventId) },
+                    onEditClick = { evt -> mainViewModel.openEditEventForm(evt) },
                     onDismissRequest = { mainViewModel.dismissEventDetails() }
                 )
             }

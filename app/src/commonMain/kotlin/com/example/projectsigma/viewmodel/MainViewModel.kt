@@ -33,6 +33,9 @@ class MainViewModel(
     private val _selectedCluster = MutableStateFlow<EventCluster?>(null)
     val selectedCluster: StateFlow<EventCluster?> = _selectedCluster.asStateFlow()
 
+    private val _editingEvent = MutableStateFlow<Event?>(null)
+    val editingEvent: StateFlow<Event?> = _editingEvent.asStateFlow()
+
     private val _isProfileOpen = MutableStateFlow(false)
     val isProfileOpen: StateFlow<Boolean> = _isProfileOpen.asStateFlow()
 
@@ -76,6 +79,7 @@ class MainViewModel(
             _selectedEvent.value = event
             _selectedCluster.value = null
             _isCreateEventOpen.value = false
+            _isProfileOpen.value = false
         }
     }
 
@@ -92,18 +96,27 @@ class MainViewModel(
     fun onMapClick(lat: Double, lng: Double) {
         _selectedEvent.value = null
         _selectedCluster.value = null
+        _editingEvent.value = null
         _newPinLocation.value = Pair(lat, lng)
         _isCreateEventOpen.value = true // Opens "Create event here" bottom sheet on tap
     }
 
     fun openCreateEventForm(lat: Double = 51.5074, lng: Double = -0.1278) {
+        _editingEvent.value = null
         _newPinLocation.value = Pair(lat, lng)
         _isCreateEventOpen.value = true
         _selectedEvent.value = null
     }
 
+    fun openEditEventForm(event: Event) {
+        _editingEvent.value = event
+        _newPinLocation.value = Pair(event.latitude, event.longitude)
+        _isCreateEventOpen.value = true
+    }
+
     fun closeCreateEventForm() {
         _isCreateEventOpen.value = false
+        _editingEvent.value = null
         _newPinLocation.value = null
     }
 
@@ -128,14 +141,36 @@ class MainViewModel(
             user = user
         )
 
-        // Select the newly created event to show its details sheet and pin on map!
         _selectedEvent.value = newEvent
 
-        // Update user's event count in auth state
         val userEvents = eventsRepository.getEventsByUser(user.id)
         authRepository.updateUserEventCount(userEvents.size)
 
         closeCreateEventForm()
+    }
+
+    fun updateEvent(
+        title: String,
+        description: String,
+        category: EventCategory,
+        dateTime: String,
+        photoUrl: String?
+    ) {
+        val eventToEdit = _editingEvent.value ?: return
+        val updated = eventsRepository.updateEvent(
+            eventId = eventToEdit.id,
+            title = title,
+            description = description,
+            category = category,
+            dateTime = dateTime,
+            photoUrl = photoUrl
+        )
+        if (updated != null) {
+            _selectedEvent.value = updated
+        }
+        _editingEvent.value = null
+        _isCreateEventOpen.value = false
+        _newPinLocation.value = null
     }
 
     fun joinEvent(eventId: String) {

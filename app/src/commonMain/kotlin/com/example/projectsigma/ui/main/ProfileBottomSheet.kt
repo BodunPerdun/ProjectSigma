@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -28,12 +30,14 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.User
+import com.example.projectsigma.ui.components.AsyncEventImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -176,11 +180,26 @@ fun ProfileBottomSheet(
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = event.category.iconName,
-                                    fontSize = 24.sp,
-                                    modifier = Modifier.padding(end = 12.dp)
-                                )
+                                if (event.photoUrl != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                    ) {
+                                        AsyncEventImage(
+                                            url = event.photoUrl,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                } else {
+                                    Text(
+                                        text = event.category.iconName,
+                                        fontSize = 24.sp,
+                                        modifier = Modifier.padding(end = 12.dp)
+                                    )
+                                }
+
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = event.title,

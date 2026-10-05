@@ -43,17 +43,28 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.EventCategory
 import com.example.projectsigma.ui.components.AsyncEventImage
 import com.example.projectsigma.ui.components.GalleryImagePickerButton
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.math.round
 
 private fun round4(value: Double): Double = round(value * 10000.0) / 10000.0
+
+private fun formatTime(hour: Int, minute: Int): String {
+    val h = hour.toString().padStart(2, '0')
+    val m = minute.toString().padStart(2, '0')
+    return "$h:$m"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateEventBottomSheet(
     location: Pair<Double, Double>,
+    eventToEdit: Event? = null,
     onDismissRequest: () -> Unit,
     onCreateEvent: (title: String, description: String, category: EventCategory, dateTime: String, photoUrl: String?) -> Unit,
     modifier: Modifier = Modifier
@@ -61,19 +72,58 @@ fun CreateEventBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val haptic = LocalHapticFeedback.current
 
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(EventCategory.MEETUP) }
-    var dateTime by remember { mutableStateOf("Today at 19:00") }
-    var photoUrl by remember { mutableStateOf<String?>(null) }
+    var title by remember { mutableStateOf(eventToEdit?.title ?: "") }
+    var description by remember { mutableStateOf(eventToEdit?.description ?: "") }
+    var selectedCategory by remember { mutableStateOf(eventToEdit?.category ?: EventCategory.MEETUP) }
+    var photoUrl by remember { mutableStateOf<String?>(eventToEdit?.photoUrl) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    // Separated Date and Hour States
+    var selectedDateText by remember { mutableStateOf("05.10.2026") }
+    var startHour by remember { mutableStateOf(19) }
+    var startMinute by remember { mutableStateOf(0) }
+    var endHour by remember { mutableStateOf(21) }
+    var endMinute by remember { mutableStateOf(0) }
+
+    // Parse initial dateTime if editing
+    remember(eventToEdit) {
+        if (eventToEdit != null && eventToEdit.dateTime.contains(" ")) {
+            val parts = eventToEdit.dateTime.split(" ")
+            if (parts.isNotEmpty()) {
+                selectedDateText = parts[0]
+            }
+            val timePart = eventToEdit.dateTime.substringAfter(selectedDateText).trim()
+            if (timePart.contains("-")) {
+                val times = timePart.split("-")
+                val start = times[0].trim()
+                val end = times[1].trim()
+                val startH = start.substringBefore(":").toIntOrNull()
+                val startM = start.substringAfter(":").toIntOrNull()
+                val endH = end.substringBefore(":").toIntOrNull()
+                val endM = end.substringAfter(":").toIntOrNull()
+
+                if (startH != null) startHour = startH
+                if (startM != null) startMinute = startM
+                if (endH != null) endHour = endH
+                if (endM != null) endMinute = endM
+            }
+        }
+    }
+
     var showDatePicker by remember { mutableStateOf(false) }
-    var showTimePicker by remember { mutableStateOf(false) }
-    var selectedDateText by remember { mutableStateOf("Today") }
+    var showStartTimePicker by remember { mutableStateOf(false) }
+    var showEndTimePicker by remember { mutableStateOf(false) }
 
     val datePickerState = rememberDatePickerState()
-    val timePickerState = rememberTimePickerState(initialHour = 19, initialMinute = 0)
+    val startTimePickerState = rememberTimePickerState(initialHour = startHour, initialMinute = startMinute)
+    val endTimePickerState = rememberTimePickerState(initialHour = endHour, initialMinute = endMinute)
+
+    val isEditing = eventToEdit != null
+
+    // Validation: Total Minutes Comparison
+    val startTotalMinutes = startHour * 60 + startMinute
+    val endTotalMinutes = endHour * 60 + endMinute
+    val isTimeIntervalValid = endTotalMinutes > startTotalMinutes
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -89,7 +139,7 @@ fun CreateEventBottomSheet(
             horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = "📍 Create Event Pin",
+                text = if (isEditing) "✏️ Edit Event Details" else "📍 Create Event Pin",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
 
@@ -142,29 +192,125 @@ fun CreateEventBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Date & Time Picker Field (Clickable)
-            OutlinedTextField(
-                value = dateTime,
-                onValueChange = { dateTime = it },
-                label = { Text("Date & Time (Tap to select) *") },
-                singleLine = true,
-                readOnly = true,
+            // SEPARATED FIELD 1: Date Field (Entire Box Clickable)
+            Text(
+                text = "Event Date",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.DarkGray
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { showDatePicker = true },
-                shape = RoundedCornerShape(12.dp),
-                trailingIcon = {
-                    TextButton(onClick = { showDatePicker = true }) {
-                        Text("📅 Pick", fontSize = 12.sp)
+                    .clickable { showDatePicker = true }
+            ) {
+                OutlinedTextField(
+                    value = selectedDateText,
+                    onValueChange = {},
+                    label = { Text("Date (DD.MM.YYYY) *") },
+                    singleLine = true,
+                    readOnly = true,
+                    enabled = false,
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = Color.Unspecified,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    trailingIcon = {
+                        Text("📅 Pick Date", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                     }
-                }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // SEPARATED FIELD 2 & 3: Hours Interval Fields (Entire Boxes Clickable)
+            Text(
+                text = "Event Time Interval (Hours)",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.DarkGray
             )
+            Spacer(modifier = Modifier.height(4.dp))
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Start Hour Field Box
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showStartTimePicker = true }
+                ) {
+                    OutlinedTextField(
+                        value = formatTime(startHour, startMinute),
+                        onValueChange = {},
+                        label = { Text("Start Hour *") },
+                        singleLine = true,
+                        readOnly = true,
+                        enabled = false,
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = Color.Unspecified,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        trailingIcon = {
+                            Text("⏰", fontSize = 14.sp)
+                        }
+                    )
+                }
 
-            // Photo Attachment Section (Clean Gallery Photo Picker)
+                // End Hour Field Box
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showEndTimePicker = true }
+                ) {
+                    OutlinedTextField(
+                        value = formatTime(endHour, endMinute),
+                        onValueChange = {},
+                        label = { Text("End Hour *") },
+                        singleLine = true,
+                        readOnly = true,
+                        enabled = false,
+                        isError = !isTimeIntervalValid,
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = Color.Unspecified,
+                            disabledBorderColor = if (!isTimeIntervalValid) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        trailingIcon = {
+                            Text("⌛", fontSize = 14.sp)
+                        }
+                    )
+                }
+            }
+
+            // Inline Validation Warning
+            if (!isTimeIntervalValid) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "⚠️ End hour (${formatTime(endHour, endMinute)}) cannot be earlier than or equal to Start hour (${formatTime(startHour, startMinute)})",
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Photo Attachment Section
             Text(
                 text = "Attach Event Cover Photo",
                 fontSize = 14.sp,
@@ -229,24 +375,28 @@ fun CreateEventBottomSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Submit Button with Haptic Feedback
+            // Submit Button
             Button(
                 onClick = {
                     if (title.isBlank()) {
                         errorMessage = "Event title is required."
+                    } else if (!isTimeIntervalValid) {
+                        errorMessage = "End hour must be later than Start hour."
                     } else {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onCreateEvent(title, description, selectedCategory, dateTime, photoUrl)
+                        val formattedDateTime = "$selectedDateText ${formatTime(startHour, startMinute)} - ${formatTime(endHour, endMinute)}"
+                        onCreateEvent(title, description, selectedCategory, formattedDateTime, photoUrl)
                         onDismissRequest()
                     }
                 },
+                enabled = isTimeIntervalValid && title.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
                 shape = RoundedCornerShape(25.dp)
             ) {
                 Text(
-                    text = "Publish Event on Map",
+                    text = if (isEditing) "Save Changes" else "Publish Event on Map",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -254,7 +404,7 @@ fun CreateEventBottomSheet(
         }
     }
 
-    // Material 3 Date Picker Dialog
+    // Step 1: Material 3 Date Picker Dialog
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -262,12 +412,16 @@ fun CreateEventBottomSheet(
                 TextButton(onClick = {
                     val millis = datePickerState.selectedDateMillis
                     if (millis != null) {
-                        selectedDateText = "Date selected"
+                        val instant = Instant.fromEpochMilliseconds(millis)
+                        val date = instant.toLocalDateTime(TimeZone.UTC).date
+                        val day = date.dayOfMonth.toString().padStart(2, '0')
+                        val month = date.monthNumber.toString().padStart(2, '0')
+                        val year = date.year
+                        selectedDateText = "$day.$month.$year"
                     }
                     showDatePicker = false
-                    showTimePicker = true // Chain to TimePicker
                 }) {
-                    Text("Next: Pick Time")
+                    Text("Confirm Date")
                 }
             },
             dismissButton = {
@@ -280,22 +434,29 @@ fun CreateEventBottomSheet(
         }
     }
 
-    // Material 3 Time Picker Dialog
-    if (showTimePicker) {
+    // Step 2: Start Time Picker Dialog
+    if (showStartTimePicker) {
         DatePickerDialog(
-            onDismissRequest = { showTimePicker = false },
+            onDismissRequest = { showStartTimePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    val hour = timePickerState.hour.toString().padStart(2, '0')
-                    val min = timePickerState.minute.toString().padStart(2, '0')
-                    dateTime = "$selectedDateText at $hour:$min"
-                    showTimePicker = false
+                    startHour = startTimePickerState.hour
+                    startMinute = startTimePickerState.minute
+
+                    // Auto-adjust end hour if start hour exceeds or equals end hour
+                    val newStartTotal = startHour * 60 + startMinute
+                    if (newStartTotal >= endTotalMinutes) {
+                        endHour = (startHour + 1).coerceAtMost(23)
+                        endMinute = startMinute
+                    }
+
+                    showStartTimePicker = false
                 }) {
-                    Text("Confirm")
+                    Text("Set Start Hour")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) {
+                TextButton(onClick = { showStartTimePicker = false }) {
                     Text("Cancel")
                 }
             }
@@ -304,8 +465,37 @@ fun CreateEventBottomSheet(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Select Time", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
-                TimePicker(state = timePickerState)
+                Text("Select Start Hour", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
+                TimePicker(state = startTimePickerState)
+            }
+        }
+    }
+
+    // Step 3: End Time Picker Dialog
+    if (showEndTimePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showEndTimePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    endHour = endTimePickerState.hour
+                    endMinute = endTimePickerState.minute
+                    showEndTimePicker = false
+                }) {
+                    Text("Set End Hour")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndTimePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Select End Hour", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
+                TimePicker(state = endTimePickerState)
             }
         }
     }

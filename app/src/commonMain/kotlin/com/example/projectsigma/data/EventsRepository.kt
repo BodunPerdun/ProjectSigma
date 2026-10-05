@@ -17,6 +17,14 @@ interface EventsRepository {
         photoUrl: String?,
         user: User
     ): Event
+    fun updateEvent(
+        eventId: String,
+        title: String,
+        description: String,
+        category: EventCategory,
+        dateTime: String,
+        photoUrl: String?
+    ): Event?
     fun joinEvent(eventId: String, user: User): Event?
     fun leaveEvent(eventId: String, userId: String): Event?
     fun getEventsByUser(userId: String): List<Event>

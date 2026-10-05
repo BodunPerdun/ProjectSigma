@@ -22,7 +22,7 @@ class LocalEventsRepositoryImpl : EventsRepository {
             category = EventCategory.PARTY,
             latitude = 51.5074,
             longitude = -0.1278,
-            dateTime = "Today at 19:00",
+            dateTime = "05.10.2026 19:00 - 22:00",
             photoUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600",
             createdById = "user_10",
             createdByName = "London Music Club",
@@ -37,7 +37,7 @@ class LocalEventsRepositoryImpl : EventsRepository {
             category = EventCategory.MEETUP,
             latitude = 51.5085,
             longitude = -0.1250,
-            dateTime = "Tomorrow at 18:00",
+            dateTime = "06.10.2026 18:00 - 20:30",
             photoUrl = "https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=600",
             createdById = "user_test_account_1",
             createdByName = "Test User",
@@ -51,7 +51,7 @@ class LocalEventsRepositoryImpl : EventsRepository {
             category = EventCategory.FOOD,
             latitude = 51.5090,
             longitude = -0.1280,
-            dateTime = "Friday at 17:00",
+            dateTime = "08.10.2026 17:00 - 21:00",
             photoUrl = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600",
             createdById = "user_12",
             createdByName = "Foodie Community",
@@ -65,7 +65,7 @@ class LocalEventsRepositoryImpl : EventsRepository {
             category = EventCategory.CULTURE,
             latitude = 51.5060,
             longitude = -0.1295,
-            dateTime = "Saturday at 12:00",
+            dateTime = "10.10.2026 12:00 - 16:00",
             photoUrl = "https://images.unsplash.com/photo-1536924940846-227afb31e2a5?w=600",
             createdById = "user_13",
             createdByName = "Metropolitan Art Space",
@@ -104,6 +104,32 @@ class LocalEventsRepositoryImpl : EventsRepository {
         )
         _events.value = listOf(newEvent) + _events.value
         return newEvent
+    }
+
+    override fun updateEvent(
+        eventId: String,
+        title: String,
+        description: String,
+        category: EventCategory,
+        dateTime: String,
+        photoUrl: String?
+    ): Event? {
+        val currentList = _events.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == eventId }
+        if (index != -1) {
+            val oldEvent = currentList[index]
+            val updatedEvent = oldEvent.copy(
+                title = title,
+                description = description,
+                category = category,
+                dateTime = dateTime,
+                photoUrl = photoUrl
+            )
+            currentList[index] = updatedEvent
+            _events.value = currentList
+            return updatedEvent
+        }
+        return null
     }
 
     override fun joinEvent(eventId: String, user: User): Event? {
