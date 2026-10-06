@@ -10,8 +10,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.example.projectsigma.data.AuthRepository
 import com.example.projectsigma.data.EventsRepository
+import com.example.projectsigma.data.FriendRequestService
 import com.example.projectsigma.data.LocalAuthRepositoryImpl
 import com.example.projectsigma.data.LocalEventsRepositoryImpl
+import com.example.projectsigma.data.LocalFriendRequestServiceImpl
+import com.example.projectsigma.data.LocalNotificationsRepositoryImpl
+import com.example.projectsigma.data.NotificationsRepository
 import com.example.projectsigma.ui.auth.AuthScreen
 import com.example.projectsigma.ui.main.MainScreen
 import com.example.projectsigma.ui.splash.SplashScreen
@@ -21,7 +25,11 @@ import com.example.projectsigma.viewmodel.MainViewModel
 @Composable
 fun App(
     eventsRepository: EventsRepository = remember { LocalEventsRepositoryImpl() },
-    authRepository: AuthRepository = remember { LocalAuthRepositoryImpl() }
+    authRepository: AuthRepository = remember { LocalAuthRepositoryImpl() },
+    notificationsRepository: NotificationsRepository = remember { LocalNotificationsRepositoryImpl() },
+    friendRequestService: FriendRequestService = remember(authRepository, notificationsRepository) {
+        LocalFriendRequestServiceImpl(authRepository, notificationsRepository)
+    }
 ) {
     var isSplashVisible by remember { mutableStateOf(true) }
 
@@ -39,7 +47,9 @@ fun App(
             } else {
                 MainScreen(
                     mainViewModel = mainViewModel,
-                    authViewModel = authViewModel
+                    authViewModel = authViewModel,
+                    notificationsRepository = notificationsRepository,
+                    friendRequestService = friendRequestService
                 )
             }
         }

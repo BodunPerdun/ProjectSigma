@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class AuthViewModel(private val authRepository: AuthRepository) {
+class AuthViewModel(val authRepository: AuthRepository) {
 
     private val scope = CoroutineScope(Dispatchers.Main)
 
@@ -109,10 +109,18 @@ class AuthViewModel(private val authRepository: AuthRepository) {
         return authRepository.getDiscoverableNearbyUsers()
     }
 
-    fun getFriendUsers(): List<User> {
+    fun getFriendUsers(allKnownUsers: List<User> = emptyList()): List<User> {
         val friendIds = currentUser.value?.friends ?: emptyList()
-        return authRepository.getDiscoverableNearbyUsers()
-            .map { it.first }
-            .filter { friendIds.contains(it.id) }
+        val nearbyUsers = authRepository.getDiscoverableNearbyUsers().map { it.first }
+        val combinedUsers = (nearbyUsers + allKnownUsers).distinctBy { it.id }
+
+        return friendIds.map { fId ->
+            combinedUsers.find { it.id == fId } ?: User(
+                id = fId,
+                email = "",
+                displayName = if (fId.startsWith("usr_near_")) "Nearby Friend" else "Friend",
+                isSocialsPublic = true
+            )
+        }
     }
 }

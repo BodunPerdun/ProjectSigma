@@ -6,12 +6,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,11 +34,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +48,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.projectsigma.data.FriendRequestService
+import com.example.projectsigma.data.LocalFriendRequestServiceImpl
+import com.example.projectsigma.data.LocalNotificationsRepositoryImpl
+import com.example.projectsigma.data.NotificationsRepository
 import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.model.EventCategory
 import com.example.projectsigma.model.NotificationItem
@@ -50,14 +61,21 @@ import com.example.projectsigma.model.localizedLabel
 import com.example.projectsigma.ui.components.UserAvatar
 import com.example.projectsigma.viewmodel.AuthViewModel
 import com.example.projectsigma.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     mainViewModel: MainViewModel,
     authViewModel: AuthViewModel,
+    notificationsRepository: NotificationsRepository = remember { LocalNotificationsRepositoryImpl() },
+    friendRequestService: FriendRequestService = remember(authViewModel, notificationsRepository) {
+        LocalFriendRequestServiceImpl(authViewModel.authRepository, notificationsRepository)
+    },
     modifier: Modifier = Modifier
 ) {
+    val coroutineScope = rememberCoroutineScope()
+
     val clusters by mainViewModel.clusters.collectAsState()
     val selectedEvent by mainViewModel.selectedEvent.collectAsState()
     val selectedCluster by mainViewModel.selectedCluster.collectAsState()
@@ -68,44 +86,49 @@ fun MainScreen(
     val newPinLocation by mainViewModel.newPinLocation.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
 
+    // Collect persistent notifications list from NotificationsRepository
+    val rawNotifications by notificationsRepository.notifications.collectAsState()
+
+    // Filter notifications so the current user ONLY sees notifications targeted to them
+    val userNotifications = remember(rawNotifications, currentUser) {
+        rawNotifications.filter {
+            it.recipientUserId == null || it.recipientUserId == currentUser?.id
+        }
+    }
+
     // Collect current language state so all UI texts update instantly
     val currentLanguage by AppLanguageManager.currentLanguage.collectAsState()
+
+    // System Window Insets for status bar & navigation bar padding
+    val statusBarTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val navBarBottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     var isFriendsOpen by remember { mutableStateOf(false) }
     var isSettingsOpen by remember { mutableStateOf(false) }
     var isNotificationsOpen by remember { mutableStateOf(false) }
 
-    val sampleSender = remember {
-        User(
-            id = "usr_near_1",
-            email = "elena@example.com",
-            displayName = "Elena Rostova",
-            photoUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
-            bio = "Software engineer & jazz enthusiast in London 🎷☕"
-        )
-    }
+    // Automated 1-Hour Pre-Event Starting Reminder Checker
+    LaunchedEffect(clusters, currentUser) {
+        val userEvents = clusters.flatMap { it.events }.filter { evt ->
+            currentUser != null && (evt.participants.any { it.id == currentUser?.id } || evt.createdById == currentUser?.id)
+        }
 
-    var notifications by remember {
-        mutableStateOf(
-            listOf(
-                NotificationItem(
-                    id = "notif_1",
-                    type = NotificationType.FRIEND_REQUEST,
-                    title = "Friend Request",
-                    message = "Elena Rostova sent you a friend request",
-                    timestampText = "10m ago",
-                    senderUser = sampleSender
-                ),
-                NotificationItem(
-                    id = "notif_2",
+        userEvents.forEach { evt ->
+            val reminderId = "reminder_1h_${evt.id}"
+            val alreadySent = rawNotifications.any { it.id == reminderId }
+            if (!alreadySent) {
+                val notif = NotificationItem(
+                    id = reminderId,
                     type = NotificationType.EVENT_REMINDER,
                     title = "⏰ Event Starting Soon",
-                    message = "'Open Air Jazz Festival' starts in 30 minutes!",
-                    timestampText = "30m ago",
-                    relatedEventId = "evt_1"
+                    message = "'${evt.title}' starts in 1 hour!",
+                    timestampText = "Just now",
+                    recipientUserId = currentUser?.id,
+                    relatedEventId = evt.id
                 )
-            )
-        )
+                notificationsRepository.addNotification(notif)
+            }
+        }
     }
 
     Scaffold(
@@ -133,7 +156,8 @@ fun MainScreen(
                 color = Color.White.copy(alpha = 0.96f),
                 shadowElevation = 8.dp,
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .widthIn(max = 600.dp)
+                    .fillMaxWidth(0.95f)
                     .align(Alignment.TopCenter)
                     .padding(top = 12.dp, start = 12.dp, end = 12.dp)
                     .height(56.dp)
@@ -189,12 +213,12 @@ fun MainScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // Bell Notifications Circle Button with Unread Red Badge Dot
-                        val hasUnread = notifications.any { !it.isRead }
+                        val hasUnread = userNotifications.any { !it.isRead }
                         Box {
                             Surface(
                                 onClick = {
                                     isNotificationsOpen = true
-                                    notifications = notifications.map { it.copy(isRead = true) }
+                                    notificationsRepository.markAllAsRead()
                                 },
                                 shape = CircleShape,
                                 color = Color(0xFFF0F4F8),
@@ -240,12 +264,13 @@ fun MainScreen(
                 }
             }
 
-            // Top Category Filter Chips with explicit key(currentLanguage) for 100% instant recomposition
+            // Top Category Filter Chips
             key(currentLanguage) {
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopStart)
+                        .widthIn(max = 600.dp)
+                        .fillMaxWidth(0.95f)
+                        .align(Alignment.TopCenter)
                         .padding(top = 76.dp, start = 12.dp, end = 12.dp)
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -273,7 +298,7 @@ fun MainScreen(
                 }
             }
 
-            // Bottom Right Floating Button: Vector Person UI Icon for Friends & Discovery
+            // Bottom Right Floating Button
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -302,19 +327,22 @@ fun MainScreen(
             // Bottom Sheets
             if (isNotificationsOpen) {
                 NotificationsBottomSheet(
-                    notifications = notifications,
+                    notifications = userNotifications,
                     onAcceptFriendRequest = { notif ->
                         notif.senderUser?.let { sender ->
-                            authViewModel.addFriend(sender.id)
+                            coroutineScope.launch {
+                                currentUser?.let { curr ->
+                                    friendRequestService.acceptFriendRequest(notif.id, sender.id, curr.id)
+                                }
+                            }
                         }
-                        notifications = notifications.map {
-                            if (it.id == notif.id) it.copy(isHandled = true, isRead = true) else it
-                        }
+                        notificationsRepository.markAsHandled(notif.id)
                     },
                     onDeclineFriendRequest = { notif ->
-                        notifications = notifications.map {
-                            if (it.id == notif.id) it.copy(isHandled = true, isRead = true) else it
+                        coroutineScope.launch {
+                            friendRequestService.declineFriendRequest(notif.id)
                         }
+                        notificationsRepository.markAsHandled(notif.id)
                     },
                     onNotificationClick = { notif ->
                         if (notif.relatedEventId != null) {
@@ -336,6 +364,21 @@ fun MainScreen(
                 FriendsBottomSheet(
                     authViewModel = authViewModel,
                     currentUser = currentUser!!,
+                    allEvents = clusters.flatMap { it.events },
+                    friendRequestService = friendRequestService,
+                    onAddFriend = { targetUserId ->
+                        if (currentUser != null && targetUserId != currentUser!!.id) {
+                            val allParticipants = clusters.flatMap { it.events }.flatMap { it.participants }
+                            val targetUser = allParticipants.find { it.id == targetUserId }
+                                ?: authViewModel.getDiscoverableNearbyUsers().map { it.first }.find { it.id == targetUserId }
+                                ?: User(id = targetUserId, email = "", displayName = "User", isSocialsPublic = true)
+
+                            coroutineScope.launch {
+                                friendRequestService.sendFriendRequest(currentUser!!, targetUser)
+                            }
+                        }
+                    },
+                    onRemoveFriend = { userId -> authViewModel.removeFriend(userId) },
                     onDismissRequest = { isFriendsOpen = false }
                 )
             }
@@ -345,6 +388,7 @@ fun MainScreen(
                     user = currentUser!!,
                     userEvents = mainViewModel.getUserCreatedEvents(),
                     onEventClick = { eventId -> mainViewModel.onMarkerClick(eventId) },
+                    onFriendsClick = { isFriendsOpen = true },
                     onLocationVisibilityChanged = { isVisible ->
                         authViewModel.updateLocationVisibility(isVisible)
                     },
@@ -395,7 +439,19 @@ fun MainScreen(
                 EventDetailsBottomSheet(
                     event = event,
                     currentUser = currentUser,
-                    onAddFriend = { userId -> authViewModel.addFriend(userId) },
+                    friendRequestService = friendRequestService,
+                    onAddFriend = { targetUserId ->
+                        if (currentUser != null && targetUserId != currentUser!!.id) {
+                            val allParticipants = clusters.flatMap { it.events }.flatMap { it.participants }
+                            val targetUser = allParticipants.find { it.id == targetUserId }
+                                ?: authViewModel.getDiscoverableNearbyUsers().map { it.first }.find { it.id == targetUserId }
+                                ?: User(id = targetUserId, email = "", displayName = "User", isSocialsPublic = true)
+
+                            coroutineScope.launch {
+                                friendRequestService.sendFriendRequest(currentUser!!, targetUser)
+                            }
+                        }
+                    },
                     onRemoveFriend = { userId -> authViewModel.removeFriend(userId) },
                     onJoinClick = { eventId -> mainViewModel.joinEvent(eventId) },
                     onLeaveClick = { eventId -> mainViewModel.leaveEvent(eventId) },

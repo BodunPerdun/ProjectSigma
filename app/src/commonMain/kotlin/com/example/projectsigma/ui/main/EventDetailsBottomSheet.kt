@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.projectsigma.data.FriendRequestService
 import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.User
@@ -59,6 +60,7 @@ import com.example.projectsigma.ui.components.UserAvatar
 fun EventDetailsBottomSheet(
     event: Event,
     currentUser: User?,
+    friendRequestService: FriendRequestService? = null,
     onAddFriend: (userId: String) -> Unit = {},
     onRemoveFriend: (userId: String) -> Unit = {},
     onJoinClick: (eventId: String) -> Unit,
@@ -470,11 +472,12 @@ fun EventDetailsBottomSheet(
         }
     }
 
-    // Modal Sheet 2: Single Participant / Organizer Profile Card (with Bio, Add Friend Button, & Social Links)
+    // Modal Sheet 2: Single Participant / Organizer Profile Card (with Bio, Add Friend Request Button, & Social Links)
     selectedParticipantProfile?.let { participant ->
         val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val isAlreadyFriend = currentUser?.friends?.contains(participant.id) == true
         val isSelf = currentUser?.id == participant.id
+        val isPending = currentUser != null && friendRequestService?.isRequestPending(currentUser.id, participant.id) == true
 
         ModalBottomSheet(
             onDismissRequest = { selectedParticipantProfile = null },
@@ -617,7 +620,7 @@ fun EventDetailsBottomSheet(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Add Friend / Remove Friend Action Button
+                // Add Friend / Remove Friend / Pending Request Action Button
                 if (!isSelf && currentUser != null) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -638,6 +641,21 @@ fun EventDetailsBottomSheet(
                                 )
                             ) {
                                 Text(s.removeFriendBtn, fontWeight = FontWeight.Bold)
+                            }
+                        } else if (isPending) {
+                            Button(
+                                onClick = {},
+                                enabled = false,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    disabledContainerColor = Color(0xFFFFF3CD),
+                                    disabledContentColor = Color(0xFF856404)
+                                )
+                            ) {
+                                Text(s.pendingRequestBtn, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                         } else {
                             Button(

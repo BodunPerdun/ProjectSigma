@@ -38,8 +38,11 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.projectsigma.data.FriendRequestService
 import com.example.projectsigma.i18n.AppLanguageManager
+import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.User
+import com.example.projectsigma.model.localizedTitle
 import com.example.projectsigma.ui.components.UserAvatar
 import com.example.projectsigma.viewmodel.AuthViewModel
 
@@ -48,6 +51,10 @@ import com.example.projectsigma.viewmodel.AuthViewModel
 fun FriendsBottomSheet(
     authViewModel: AuthViewModel,
     currentUser: User,
+    allEvents: List<Event> = emptyList(),
+    friendRequestService: FriendRequestService? = null,
+    onAddFriend: (userId: String) -> Unit = {},
+    onRemoveFriend: (userId: String) -> Unit = {},
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -60,8 +67,31 @@ fun FriendsBottomSheet(
     var selectedTabIndex by remember { mutableStateOf(0) }
     var selectedUserProfile by remember { mutableStateOf<User?>(null) }
 
-    val friendUsers = remember(currentUser.friends) { authViewModel.getFriendUsers() }
-    val nearbyUsers = remember { authViewModel.getDiscoverableNearbyUsers() }
+    val friendUsers = remember(currentUser.friends, allEvents, currentLanguage) {
+        val allParticipants = allEvents.flatMap { it.participants }
+        authViewModel.getFriendUsers(allParticipants)
+    }
+
+    // Compute co-attendees from events currentUser attended or created
+    val coAttendees = remember(currentUser, allEvents, currentLanguage) {
+        val userEvents = allEvents.filter { evt ->
+            evt.createdById == currentUser.id || evt.participants.any { it.id == currentUser.id }
+        }
+        val participantsMap = mutableMapOf<String, Pair<User, String>>() // userId -> (User, Shared Event Title)
+        userEvents.forEach { evt ->
+            evt.participants.filter { it.id != currentUser.id }.forEach { p ->
+                if (!participantsMap.containsKey(p.id)) {
+                    participantsMap[p.id] = Pair(p, evt.localizedTitle)
+                }
+            }
+        }
+        // Fallback to discoverable nearby users if user hasn't joined events with others yet
+        if (participantsMap.isEmpty()) {
+            authViewModel.getDiscoverableNearbyUsers().map { Pair(it.first, it.second) }
+        } else {
+            participantsMap.values.toList()
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -102,7 +132,7 @@ fun FriendsBottomSheet(
                     onClick = { selectedTabIndex = 1 },
                     text = {
                         Text(
-                            text = s.peopleNearbyTab,
+                            text = s.eventCoAttendeesTab,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
@@ -177,7 +207,7 @@ fun FriendsBottomSheet(
                                         }
 
                                         OutlinedButton(
-                                            onClick = { authViewModel.removeFriend(friend.id) },
+                                            onClick = { onRemoveFriend(friend.id) },
                                             shape = RoundedCornerShape(16.dp),
                                             colors = ButtonDefaults.outlinedButtonColors(
                                                 contentColor = MaterialTheme.colorScheme.error
@@ -193,101 +223,70 @@ fun FriendsBottomSheet(
                 }
 
                 1 -> {
-                    // TAB 2: People Nearby
+                    // TAB 2: Event Co-Attendees (People from events user attended)
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        // Location Visibility Banner if disabled
-                        if (!currentUser.isLocationVisible) {
-                            Surface(
-                                color = Color(0xFFFFF3CD),
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = s.hiddenNearbyWarning,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            color = Color(0xFF856404)
-                                        )
-                                        Text(
-                                            text = s.visibleNearbySubtitle,
-                                            fontSize = 11.sp,
-                                            color = Color(0xFF856404)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Button(
-                                        onClick = { authViewModel.updateLocationVisibility(true) },
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF856404))
-                                    ) {
-                                        Text(s.enableBtn, fontSize = 11.sp, color = Color.White)
-                                    }
-                                }
-                            }
-                        }
-
                         Text(
-                            text = s.peopleNearbySubtitle,
+                            text = s.eventCoAttendeesSubtitle,
                             fontSize = 12.sp,
                             color = Color.Gray,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
 
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(260.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(nearbyUsers) { (nearbyUser, distanceText) ->
-                                val isFriend = currentUser.friends.contains(nearbyUser.id)
+                        if (coAttendees.isEmpty()) {
+                            Text(
+                                text = s.noCoAttendeesMsg,
+                                fontSize = 13.sp,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(vertical = 16.dp)
+                            )
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(260.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                items(coAttendees) { (coAttendeeUser, eventOrDistanceInfo) ->
+                                    val isFriend = currentUser.friends.contains(coAttendeeUser.id)
+                                    val isPending = friendRequestService?.isRequestPending(currentUser.id, coAttendeeUser.id) == true
 
-                                Card(
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            selectedUserProfile = nearbyUser
-                                        }
-                                ) {
-                                    Row(
+                                    Card(
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .clickable {
+                                                selectedUserProfile = coAttendeeUser
+                                            }
                                     ) {
-                                        UserAvatar(
-                                            user = nearbyUser,
-                                            size = 44.dp,
-                                            textSizeSp = 18
-                                        )
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            UserAvatar(
+                                                user = coAttendeeUser,
+                                                size = 44.dp,
+                                                textSizeSp = 18
+                                            )
 
-                                        Spacer(modifier = Modifier.width(12.dp))
+                                            Spacer(modifier = Modifier.width(12.dp))
 
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Column(modifier = Modifier.weight(1f)) {
                                                 Text(
-                                                    text = nearbyUser.displayName,
+                                                    text = coAttendeeUser.displayName,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 14.sp
                                                 )
-                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Spacer(modifier = Modifier.height(2.dp))
                                                 Surface(
                                                     color = Color(0xFFE3F2FD),
                                                     shape = RoundedCornerShape(8.dp)
                                                 ) {
                                                     Text(
-                                                        text = distanceText,
+                                                        text = "🎉 $eventOrDistanceInfo",
                                                         fontSize = 10.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = Color(0xFF1976D2),
@@ -295,32 +294,40 @@ fun FriendsBottomSheet(
                                                     )
                                                 }
                                             }
-                                            Text(
-                                                text = s.tapToViewProfile,
-                                                fontSize = 12.sp,
-                                                color = Color.Gray
-                                            )
-                                        }
 
-                                        if (isFriend) {
-                                            Surface(
-                                                color = Color(0xFFE8F5E9),
-                                                shape = RoundedCornerShape(14.dp)
-                                            ) {
-                                                Text(
-                                                    text = s.friendBadge,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF2E7D32),
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                                )
-                                            }
-                                        } else {
-                                            Button(
-                                                onClick = { authViewModel.addFriend(nearbyUser.id) },
-                                                shape = RoundedCornerShape(16.dp)
-                                            ) {
-                                                Text(s.addFriendBtn, fontSize = 11.sp)
+                                            if (isFriend) {
+                                                Surface(
+                                                    color = Color(0xFFE8F5E9),
+                                                    shape = RoundedCornerShape(14.dp)
+                                                ) {
+                                                    Text(
+                                                        text = s.friendBadge,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFF2E7D32),
+                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                                    )
+                                                }
+                                            } else if (isPending) {
+                                                Surface(
+                                                    color = Color(0xFFFFF3CD),
+                                                    shape = RoundedCornerShape(14.dp)
+                                                ) {
+                                                    Text(
+                                                        text = s.pendingRequestBtn,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFF856404),
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                                    )
+                                                }
+                                            } else {
+                                                Button(
+                                                    onClick = { onAddFriend(coAttendeeUser.id) },
+                                                    shape = RoundedCornerShape(16.dp)
+                                                ) {
+                                                    Text(s.addFriendBtn, fontSize = 11.sp)
+                                                }
                                             }
                                         }
                                     }
@@ -333,10 +340,11 @@ fun FriendsBottomSheet(
         }
     }
 
-    // Modal Sheet: Friend / Nearby User Full Profile Card with Privacy-Aware Social Media Links & Bio
+    // Modal Sheet: Friend / Event Co-Attendee Full Profile Card
     selectedUserProfile?.let { targetUser ->
         val userSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val isAlreadyFriend = currentUser.friends.contains(targetUser.id)
+        val isPending = friendRequestService?.isRequestPending(currentUser.id, targetUser.id) == true
 
         ModalBottomSheet(
             onDismissRequest = { selectedUserProfile = null },
@@ -501,7 +509,7 @@ fun FriendsBottomSheet(
                     if (isAlreadyFriend) {
                         OutlinedButton(
                             onClick = {
-                                authViewModel.removeFriend(targetUser.id)
+                                onRemoveFriend(targetUser.id)
                                 selectedUserProfile = null
                             },
                             modifier = Modifier
@@ -514,10 +522,25 @@ fun FriendsBottomSheet(
                         ) {
                             Text(s.removeFriendBtn, fontWeight = FontWeight.Bold)
                         }
+                    } else if (isPending) {
+                        Button(
+                            onClick = {},
+                            enabled = false,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp),
+                            shape = RoundedCornerShape(25.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                disabledContainerColor = Color(0xFFFFF3CD),
+                                disabledContentColor = Color(0xFF856404)
+                            )
+                        ) {
+                            Text(s.pendingRequestBtn, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
                     } else {
                         Button(
                             onClick = {
-                                authViewModel.addFriend(targetUser.id)
+                                onAddFriend(targetUser.id)
                                 selectedUserProfile = null
                             },
                             modifier = Modifier

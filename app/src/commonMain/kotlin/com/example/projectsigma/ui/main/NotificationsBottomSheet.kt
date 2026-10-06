@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.model.NotificationItem
 import com.example.projectsigma.model.NotificationType
+import com.example.projectsigma.model.localizedMessage
+import com.example.projectsigma.model.localizedTitle
 import com.example.projectsigma.ui.components.UserAvatar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -133,12 +135,12 @@ fun NotificationsBottomSheet(
 
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = item.title,
+                                            text = item.localizedTitle,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 14.sp
                                         )
                                         Text(
-                                            text = item.message,
+                                            text = item.localizedMessage,
                                             fontSize = 12.sp,
                                             color = Color.DarkGray
                                         )

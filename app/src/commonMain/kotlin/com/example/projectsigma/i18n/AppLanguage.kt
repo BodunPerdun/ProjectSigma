@@ -92,7 +92,15 @@ data class AppStrings(
     val notificationsTitle: String,
     val acceptBtn: String,
     val declineBtn: String,
-    val noNotificationsMsg: String
+    val noNotificationsMsg: String,
+
+    val eventCoAttendeesTab: String,
+    val eventCoAttendeesSubtitle: String,
+    val noCoAttendeesMsg: String,
+    val attendedTogetherText: String,
+
+    val requestSentMsg: String,
+    val pendingRequestBtn: String
 )
 
 val StringsRu = AppStrings(
@@ -150,7 +158,7 @@ val StringsRu = AppStrings(
     peopleNearbyTab = "📡 Люди рядом",
     addFriendBtn = "➕ Добавить",
     removeFriendBtn = "Удалить",
-    friendBadge = "✓ В друзьях",
+    friendBadge = "✓ В друзья",
     hiddenNearbyWarning = "⚠️ Вы скрыты от поиска людей рядом",
     enableBtn = "Включить",
     socialsPrivateMsg = "🔒 Ссылки на соцсети скрыты настройками приватности",
@@ -158,9 +166,9 @@ val StringsRu = AppStrings(
 
     clusterTitle = "📍 Кластер событий",
     clusterSubtitle = "Выберите событие для просмотра деталей:",
-    friendsSheetTitle = "👥 Друзья и люди рядом",
+    friendsSheetTitle = "👥 Друзья и участники ивентов",
     noFriendsYetMsg = "👥 Друзья пока не добавлены",
-    noFriendsSubtitle = "Перейдите на вкладку '📡 Люди рядом', чтобы найти друзей поблизи!",
+    noFriendsSubtitle = "Перейдите на вкладку '👥 Участники ивентов', чтобы найти людей с общих ивентов!",
     peopleNearbySubtitle = "Люди в вашем районе:",
     tapToViewProfile = "Нажмите для просмотра профиля",
     accountStatusActive = "Активен",
@@ -176,7 +184,15 @@ val StringsRu = AppStrings(
     notificationsTitle = "🔔 Уведомления",
     acceptBtn = "✓ Принять",
     declineBtn = "✕ Отклонить",
-    noNotificationsMsg = "У вас нет новых уведомлений"
+    noNotificationsMsg = "У вас нет новых уведомлений",
+
+    eventCoAttendeesTab = "👥 Участники ивентов",
+    eventCoAttendeesSubtitle = "Люди, которые посещали одинаковые события с вами:",
+    noCoAttendeesMsg = "Пока нет совместных участников ивентов. Присоединяйтесь к событиям на карте!",
+    attendedTogetherText = "Вместе на ивенте",
+
+    requestSentMsg = "Запрос отправлен",
+    pendingRequestBtn = "⏳ Запрос отправлен"
 )
 
 val StringsUk = AppStrings(
@@ -242,9 +258,9 @@ val StringsUk = AppStrings(
 
     clusterTitle = "📍 Кластер подій",
     clusterSubtitle = "Оберіть подію для перегляду деталей:",
-    friendsSheetTitle = "👥 Друзі та люди поруч",
+    friendsSheetTitle = "👥 Друзі та учасники подій",
     noFriendsYetMsg = "👥 Друзі поки не додані",
-    noFriendsSubtitle = "Перейдіть на вкладку '📡 Люди поруч', щоб знайти друзів поблизу!",
+    noFriendsSubtitle = "Перейдіть на вкладку '👥 Учасники подій', щоб знайти людей зі спільних подій!",
     peopleNearbySubtitle = "Люди у вашому районі:",
     tapToViewProfile = "Натисніть для перегляду профілю",
     accountStatusActive = "Активний",
@@ -260,7 +276,15 @@ val StringsUk = AppStrings(
     notificationsTitle = "🔔 Повідомлення",
     acceptBtn = "✓ Прийняти",
     declineBtn = "✕ Відхилити",
-    noNotificationsMsg = "У вас немає нових повідомлень"
+    noNotificationsMsg = "У вас немає нових повідомлень",
+
+    eventCoAttendeesTab = "👥 Учасники подій",
+    eventCoAttendeesSubtitle = "Люди, які відвідували однакові події з вами:",
+    noCoAttendeesMsg = "Поки немає спільних учасників подій. Приєднуйтесь до подій на карті!",
+    attendedTogetherText = "Разом на події",
+
+    requestSentMsg = "Запит надіслано",
+    pendingRequestBtn = "⏳ Запит надіслано"
 )
 
 val StringsPl = AppStrings(
@@ -326,9 +350,9 @@ val StringsPl = AppStrings(
 
     clusterTitle = "📍 Klaster wydarzeń",
     clusterSubtitle = "Wybierz wydarzenie, aby zobaczyć szczegóły:",
-    friendsSheetTitle = "👥 Znajomi i osoby w pobliżu",
+    friendsSheetTitle = "👥 Znajomi i współuczestnicy wydarzeń",
     noFriendsYetMsg = "👥 Brak dodanych znajomych",
-    noFriendsSubtitle = "Przejdź do zakładki '📡 Osoby w pobliżu', aby znaleźć znajomych!",
+    noFriendsSubtitle = "Przejdź do zakładki '👥 Współuczestnicy', aby znaleźć osoby z tych samych wydarzeń!",
     peopleNearbySubtitle = "Osoby w Twojej okolicy:",
     tapToViewProfile = "Dotknij, aby zobaczyć profil",
     accountStatusActive = "Aktywny",
@@ -344,7 +368,15 @@ val StringsPl = AppStrings(
     notificationsTitle = "🔔 Powiadomienia",
     acceptBtn = "✓ Zaakceptuj",
     declineBtn = "✕ Odrzuć",
-    noNotificationsMsg = "Brak nowych powiadomień"
+    noNotificationsMsg = "Brak nowych powiadomień",
+
+    eventCoAttendeesTab = "👥 Współuczestnicy wydarzeń",
+    eventCoAttendeesSubtitle = "Osoby, które brały udział w tych samych wydarzeniach z Tobą:",
+    noCoAttendeesMsg = "Brak współuczestników wydarzeń. Dołącz do wydarzeń na mapie!",
+    attendedTogetherText = "Razem na wydarzeniu",
+
+    requestSentMsg = "Zaproszenie wysłane",
+    pendingRequestBtn = "⏳ Oczekuje na akceptację"
 )
 
 val StringsEn = AppStrings(
@@ -410,9 +442,9 @@ val StringsEn = AppStrings(
 
     clusterTitle = "📍 Events Cluster",
     clusterSubtitle = "Select an event to view full details:",
-    friendsSheetTitle = "👥 Friends & People Nearby",
+    friendsSheetTitle = "👥 Friends & Event Co-Attendees",
     noFriendsYetMsg = "👥 No friends added yet",
-    noFriendsSubtitle = "Switch to '📡 People Nearby' tab to discover friends around you!",
+    noFriendsSubtitle = "Switch to '👥 Event Co-Attendees' tab to discover people from shared events!",
     peopleNearbySubtitle = "People in your immediate area:",
     tapToViewProfile = "Tap to view profile",
     accountStatusActive = "Active",
@@ -428,7 +460,15 @@ val StringsEn = AppStrings(
     notificationsTitle = "🔔 Notifications",
     acceptBtn = "✓ Accept",
     declineBtn = "✕ Decline",
-    noNotificationsMsg = "You have no new notifications"
+    noNotificationsMsg = "You have no new notifications",
+
+    eventCoAttendeesTab = "👥 Event Co-Attendees",
+    eventCoAttendeesSubtitle = "People who attended the same events with you:",
+    noCoAttendeesMsg = "No event co-attendees yet. Join events on the map!",
+    attendedTogetherText = "Attended together",
+
+    requestSentMsg = "Request sent",
+    pendingRequestBtn = "⏳ Request Sent"
 )
 
 object AppLanguageManager {

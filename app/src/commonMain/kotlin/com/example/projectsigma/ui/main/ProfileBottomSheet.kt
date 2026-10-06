@@ -25,7 +25,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +63,7 @@ fun ProfileBottomSheet(
     user: User,
     userEvents: List<Event>,
     onEventClick: (eventId: String) -> Unit = {},
+    onFriendsClick: () -> Unit = {},
     onLocationVisibilityChanged: (Boolean) -> Unit = {},
     onSocialsPublicityChanged: (Boolean) -> Unit = {},
     onAvatarPhotoPicked: (String?) -> Unit = {},
@@ -185,7 +185,7 @@ fun ProfileBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Section 2: User Stats Card (Created Events & Friends)
+            // Section 2: User Stats Card (Created Events & Clickable Friends Count)
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(16.dp),
@@ -209,7 +209,18 @@ fun ProfileBottomSheet(
                             color = Color.Gray
                         )
                     }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+                    // Clickable Friends Count Column -> Opens Friends Sheet!
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                onFriendsClick()
+                                onDismissRequest()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
                         Text(
                             text = "${user.friends.size}",
                             fontSize = 20.sp,
@@ -219,7 +230,8 @@ fun ProfileBottomSheet(
                         Text(
                             text = s.friendsCountTitle,
                             fontSize = 12.sp,
-                            color = Color.Gray
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
