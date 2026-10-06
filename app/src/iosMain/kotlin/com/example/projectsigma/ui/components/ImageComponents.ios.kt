@@ -1,6 +1,8 @@
 package com.example.projectsigma.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,5 +44,24 @@ actual fun GalleryImagePickerButton(
         shape = RoundedCornerShape(12.dp)
     ) {
         Text("🖼️ Select Cover Photo", fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+actual fun GalleryImagePickerContainer(
+    onImagePicked: (String) -> Unit,
+    interactionSource: MutableInteractionSource?,
+    modifier: Modifier,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = modifier.clickable(
+            interactionSource = interactionSource,
+            indication = null
+        ) {
+            onImagePicked("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150")
+        }
+    ) {
+        content()
     }
 }

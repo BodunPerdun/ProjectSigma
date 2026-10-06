@@ -194,6 +194,17 @@ class MainViewModel(
         dismissEventDetails()
     }
 
+    fun updateUserAvatarInEvents(userId: String, photoUrl: String?, displayName: String) {
+        eventsRepository.updateUserAvatarInEvents(userId, photoUrl, displayName)
+        // Refresh selected event if open so avatar updates live
+        _selectedEvent.value?.let { current ->
+            val refreshed = rawEvents.value.find { it.id == current.id }
+            if (refreshed != null) {
+                _selectedEvent.value = refreshed
+            }
+        }
+    }
+
     fun joinEvent(eventId: String) {
         val user = authRepository.currentUser.value ?: return
         val updated = eventsRepository.joinEvent(eventId, user)

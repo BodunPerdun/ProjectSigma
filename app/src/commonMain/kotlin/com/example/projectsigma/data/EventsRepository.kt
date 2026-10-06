@@ -29,5 +29,6 @@ interface EventsRepository {
     fun purgeExpiredEvents()
     fun joinEvent(eventId: String, user: User): Event?
     fun leaveEvent(eventId: String, userId: String): Event?
+    fun updateUserAvatarInEvents(userId: String, newPhotoUrl: String?, newDisplayName: String)
     fun getEventsByUser(userId: String): List<Event>
 }

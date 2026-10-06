@@ -45,6 +45,7 @@ class LocalEventsRepositoryImpl : EventsRepository {
             photoUrl = "https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=600",
             createdById = "user_test_account_1",
             createdByName = "Test User",
+            createdByAvatarUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
             participants = listOf(sampleUser1, sampleUser3),
             createdAtTimestamp = getEpochMillis() - 3600000
         ),
@@ -150,6 +151,26 @@ class LocalEventsRepositoryImpl : EventsRepository {
         if (currentList.size != _events.value.size) {
             _events.value = currentList
         }
+    }
+
+    override fun updateUserAvatarInEvents(userId: String, newPhotoUrl: String?, newDisplayName: String) {
+        val currentList = _events.value.map { event ->
+            val updatedParticipants = event.participants.map { participant ->
+                if (participant.id == userId) {
+                    participant.copy(photoUrl = newPhotoUrl, displayName = newDisplayName)
+                } else participant
+            }
+            if (event.createdById == userId) {
+                event.copy(
+                    createdByAvatarUrl = newPhotoUrl,
+                    createdByName = newDisplayName,
+                    participants = updatedParticipants
+                )
+            } else {
+                event.copy(participants = updatedParticipants)
+            }
+        }
+        _events.value = currentList
     }
 
     private fun isEventExpired(dateTimeStr: String): Boolean {

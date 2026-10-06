@@ -5,14 +5,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.projectsigma.data.local.PersistentAuthRepositoryImpl
 import com.example.projectsigma.data.local.PersistentEventsRepositoryImpl
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val persistentEventsRepository = PersistentEventsRepositoryImpl(applicationContext)
+        val persistentAuthRepository = PersistentAuthRepositoryImpl(applicationContext)
         setContent {
-            App(eventsRepository = persistentEventsRepository)
+            App(
+                eventsRepository = persistentEventsRepository,
+                authRepository = persistentAuthRepository
+            )
         }
     }
 }

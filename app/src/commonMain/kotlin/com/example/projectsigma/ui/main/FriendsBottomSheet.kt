@@ -1,0 +1,516 @@
+package com.example.projectsigma.ui.main
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.projectsigma.model.User
+import com.example.projectsigma.ui.components.UserAvatar
+import com.example.projectsigma.viewmodel.AuthViewModel
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FriendsBottomSheet(
+    authViewModel: AuthViewModel,
+    currentUser: User,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val uriHandler = LocalUriHandler.current
+
+    var selectedTabIndex by remember { mutableStateOf(0) }
+    var selectedUserProfile by remember { mutableStateOf<User?>(null) }
+
+    val friendUsers = remember(currentUser.friends) { authViewModel.getFriendUsers() }
+    val nearbyUsers = remember { authViewModel.getDiscoverableNearbyUsers() }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+        ) {
+            Text(
+                text = "👥 Friends & People Nearby",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Navigation Tabs
+            PrimaryTabRow(
+                selectedTabIndex = selectedTabIndex,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Tab(
+                    selected = selectedTabIndex == 0,
+                    onClick = { selectedTabIndex = 0 },
+                    text = {
+                        Text(
+                            text = "My Friends (${friendUsers.size})",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                )
+                Tab(
+                    selected = selectedTabIndex == 1,
+                    onClick = { selectedTabIndex = 1 },
+                    text = {
+                        Text(
+                            text = "📡 People Nearby",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            when (selectedTabIndex) {
+                0 -> {
+                    // TAB 1: My Friends List
+                    if (friendUsers.isEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("👥 No friends added yet", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "Switch to the '📡 People Nearby' tab to discover and add friends around you!",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(280.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(friendUsers) { friend ->
+                                Card(
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedUserProfile = friend
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        UserAvatar(
+                                            user = friend,
+                                            size = 44.dp,
+                                            textSizeSp = 18
+                                        )
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = friend.displayName,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 14.sp
+                                            )
+                                            Text(
+                                                text = "Tap to view profile",
+                                                fontSize = 12.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = { authViewModel.removeFriend(friend.id) },
+                                            shape = RoundedCornerShape(16.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                contentColor = MaterialTheme.colorScheme.error
+                                            )
+                                        ) {
+                                            Text("Remove", fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                1 -> {
+                    // TAB 2: People Nearby
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // Location Visibility Banner if disabled
+                        if (!currentUser.isLocationVisible) {
+                            Surface(
+                                color = Color(0xFFFFF3CD),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "⚠️ Hidden from People Nearby",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF856404)
+                                        )
+                                        Text(
+                                            text = "Turn ON visibility in profile to let nearby people discover you.",
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF856404)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = { authViewModel.updateLocationVisibility(true) },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF856404))
+                                    ) {
+                                        Text("Enable", fontSize = 11.sp, color = Color.White)
+                                    }
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = "People in your immediate area:",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(260.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(nearbyUsers) { (nearbyUser, distanceText) ->
+                                val isFriend = currentUser.friends.contains(nearbyUser.id)
+
+                                Card(
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedUserProfile = nearbyUser
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        UserAvatar(
+                                            user = nearbyUser,
+                                            size = 44.dp,
+                                            textSizeSp = 18
+                                        )
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = nearbyUser.displayName,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 14.sp
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Surface(
+                                                    color = Color(0xFFE3F2FD),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ) {
+                                                    Text(
+                                                        text = distanceText,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFF1976D2),
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                text = "Tap to view profile",
+                                                fontSize = 12.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
+
+                                        if (isFriend) {
+                                            Surface(
+                                                color = Color(0xFFE8F5E9),
+                                                shape = RoundedCornerShape(14.dp)
+                                            ) {
+                                                Text(
+                                                    text = "✓ Friend",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF2E7D32),
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                        } else {
+                                            Button(
+                                                onClick = { authViewModel.addFriend(nearbyUser.id) },
+                                                shape = RoundedCornerShape(16.dp)
+                                            ) {
+                                                Text("➕ Add", fontSize = 11.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Modal Sheet: Friend / Nearby User Full Profile Card with Privacy-Aware Social Media Links
+    selectedUserProfile?.let { targetUser ->
+        val userSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val isAlreadyFriend = currentUser.friends.contains(targetUser.id)
+
+        ModalBottomSheet(
+            onDismissRequest = { selectedUserProfile = null },
+            sheetState = userSheetState,
+            containerColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                UserAvatar(
+                    user = targetUser,
+                    size = 80.dp,
+                    textSizeSp = 36
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = targetUser.displayName,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Social Media Deep Link Chips (Privacy-Aware: Checked against targetUser.isSocialsPublic)
+                if (targetUser.isSocialsPublic) {
+                    val hasSocials = !targetUser.instagramHandle.isNullOrBlank() || !targetUser.telegramHandle.isNullOrBlank()
+                    if (hasSocials) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (!targetUser.instagramHandle.isNullOrBlank()) {
+                                Surface(
+                                    color = Color(0xFFFCE4EC),
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier.clickable {
+                                        uriHandler.openUri("https://instagram.com/_u/${targetUser.instagramHandle}")
+                                    }
+                                ) {
+                                    Text(
+                                        text = "📸 Instagram",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFC2185B),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
+
+                            if (!targetUser.telegramHandle.isNullOrBlank()) {
+                                Surface(
+                                    color = Color(0xFFE3F2FD),
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier.clickable {
+                                        uriHandler.openUri("https://t.me/${targetUser.telegramHandle}")
+                                    }
+                                ) {
+                                    Text(
+                                        text = "✈️ Telegram",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1976D2),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Text("No social links provided", fontSize = 12.sp, color = Color.Gray)
+                    }
+                } else {
+                    Surface(
+                        color = Color(0xFFF5F5F5),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "🔒 Social links are private",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "${targetUser.eventsCount}",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Events Attended",
+                                fontSize = 11.sp,
+                                color = Color.Gray
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Active",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4CAF50)
+                            )
+                            Text(
+                                text = "Account Status",
+                                fontSize = 11.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (isAlreadyFriend) {
+                        OutlinedButton(
+                            onClick = {
+                                authViewModel.removeFriend(targetUser.id)
+                                selectedUserProfile = null
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp),
+                            shape = RoundedCornerShape(25.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text("Remove Friend", fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                authViewModel.addFriend(targetUser.id)
+                                selectedUserProfile = null
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp),
+                            shape = RoundedCornerShape(25.dp)
+                        ) {
+                            Text("➕ Add Friend", fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Button(
+                        onClick = { selectedUserProfile = null },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(25.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0E0E0))
+                    ) {
+                        Text("Close", color = Color.DarkGray, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}

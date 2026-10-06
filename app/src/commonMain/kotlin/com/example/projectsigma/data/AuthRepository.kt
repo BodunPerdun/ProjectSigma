@@ -10,4 +10,11 @@ interface AuthRepository {
     suspend fun signInWithGoogle(): Result<User>
     fun logout()
     fun updateUserEventCount(count: Int)
+    fun updateLocationVisibility(isVisible: Boolean)
+    fun updateSocialsPublicity(isPublic: Boolean)
+    fun updateProfilePhoto(photoUrl: String?)
+    fun updateSocialHandles(instagram: String?, telegram: String?)
+    fun addFriend(friendId: String)
+    fun removeFriend(friendId: String)
+    fun getDiscoverableNearbyUsers(): List<Pair<User, String>>
 }

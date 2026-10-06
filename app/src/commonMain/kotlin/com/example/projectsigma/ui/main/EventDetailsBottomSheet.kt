@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -43,12 +42,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.User
 import com.example.projectsigma.ui.components.AsyncEventImage
+import com.example.projectsigma.ui.components.UserAvatar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +65,7 @@ fun EventDetailsBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val haptic = LocalHapticFeedback.current
+    val uriHandler = LocalUriHandler.current
 
     var selectedParticipantProfile by remember { mutableStateOf<User?>(null) }
     var showAllParticipantsSheet by remember { mutableStateOf(false) }
@@ -181,21 +183,12 @@ fun EventDetailsBottomSheet(
                     modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.primary,
-                                shape = CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = event.createdByName.take(1).uppercase(),
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    UserAvatar(
+                        photoUrl = event.createdByAvatarUrl,
+                        displayName = event.createdByName,
+                        size = 40.dp,
+                        textSizeSp = 18
+                    )
 
                     Spacer(modifier = Modifier.width(12.dp))
 
@@ -265,22 +258,11 @@ fun EventDetailsBottomSheet(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .background(
-                                            color = MaterialTheme.colorScheme.primaryContainer,
-                                            shape = CircleShape
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = participant.displayName.take(1).uppercase(),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
+                                UserAvatar(
+                                    user = participant,
+                                    size = 24.dp,
+                                    textSizeSp = 12
+                                )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = participant.displayName,
@@ -447,22 +429,11 @@ fun EventDetailsBottomSheet(
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(
-                                            color = MaterialTheme.colorScheme.primaryContainer,
-                                            shape = CircleShape
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = participant.displayName.take(1).uppercase(),
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
+                                UserAvatar(
+                                    user = participant,
+                                    size = 36.dp,
+                                    textSizeSp = 16
+                                )
 
                                 Spacer(modifier = Modifier.width(12.dp))
 
@@ -473,7 +444,7 @@ fun EventDetailsBottomSheet(
                                         fontSize = 14.sp
                                     )
                                     Text(
-                                        text = participant.email,
+                                        text = "Participant",
                                         fontSize = 12.sp,
                                         color = Color.Gray
                                     )
@@ -486,7 +457,7 @@ fun EventDetailsBottomSheet(
         }
     }
 
-    // Modal Sheet 2: Single Participant Profile Card
+    // Modal Sheet 2: Single Participant Profile Card (Private Email Hidden, Privacy-Aware Social Links)
     selectedParticipantProfile?.let { participant ->
         val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
@@ -500,22 +471,11 @@ fun EventDetailsBottomSheet(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = participant.displayName.take(1).uppercase(),
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
+                UserAvatar(
+                    user = participant,
+                    size = 72.dp,
+                    textSizeSp = 32
+                )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -524,10 +484,69 @@ fun EventDetailsBottomSheet(
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                 )
 
-                Text(
-                    text = participant.email,
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray)
-                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Social Media Deep Link Chips (Privacy-Aware: Checks participant.isSocialsPublic)
+                if (participant.isSocialsPublic) {
+                    val hasSocials = !participant.instagramHandle.isNullOrBlank() || !participant.telegramHandle.isNullOrBlank()
+                    if (hasSocials) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (!participant.instagramHandle.isNullOrBlank()) {
+                                Surface(
+                                    color = Color(0xFFFCE4EC),
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier.clickable {
+                                        uriHandler.openUri("https://instagram.com/_u/${participant.instagramHandle}")
+                                    }
+                                ) {
+                                    Text(
+                                        text = "📸 Instagram",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFC2185B),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
+
+                            if (!participant.telegramHandle.isNullOrBlank()) {
+                                Surface(
+                                    color = Color(0xFFE3F2FD),
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier.clickable {
+                                        uriHandler.openUri("https://t.me/${participant.telegramHandle}")
+                                    }
+                                ) {
+                                    Text(
+                                        text = "✈️ Telegram",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1976D2),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Text("No social links provided", fontSize = 12.sp, color = Color.Gray)
+                    }
+                } else {
+                    Surface(
+                        color = Color(0xFFF5F5F5),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "🔒 Social links are private",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 

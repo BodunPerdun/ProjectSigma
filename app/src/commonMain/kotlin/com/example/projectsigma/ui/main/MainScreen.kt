@@ -1,39 +1,35 @@
 package com.example.projectsigma.ui.main
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.projectsigma.model.EventCategory
+import com.example.projectsigma.ui.components.UserAvatar
 import com.example.projectsigma.viewmodel.AuthViewModel
 import com.example.projectsigma.viewmodel.MainViewModel
 
@@ -54,6 +50,8 @@ fun MainScreen(
     val newPinLocation by mainViewModel.newPinLocation.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
 
+    var isFriendsOpen by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = modifier.fillMaxSize()
     ) { paddingValues ->
@@ -73,100 +71,110 @@ fun MainScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Top Header Bar & Category Filter Chips
-            Column(
+            // Top Right Profile Avatar Button
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp)
-                    .align(Alignment.TopCenter)
+                    .align(Alignment.TopEnd)
+                    .padding(top = 12.dp, end = 12.dp)
             ) {
-                Card(
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Surface(
+                    onClick = { mainViewModel.openProfile() },
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.95f),
+                    shadowElevation = 6.dp,
+                    modifier = Modifier.size(44.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "🗺️", fontSize = 22.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "SocialMap",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            )
-                        }
-
-                        // Top Right User Profile Avatar Button
-                        IconButton(
-                            onClick = { mainViewModel.openProfile() },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .background(
-                                        color = MaterialTheme.colorScheme.primaryContainer,
-                                        shape = CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = currentUser?.displayName?.take(1)?.uppercase() ?: "👤",
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontSize = 16.sp
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Category Filter Chips
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    FilterChip(
-                        selected = selectedCategory == null,
-                        onClick = { mainViewModel.selectCategory(null) },
-                        label = { Text("All Events") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = Color.White.copy(alpha = 0.9f)
-                        )
-                    )
-
-                    EventCategory.entries.forEach { cat ->
-                        val selected = selectedCategory == cat
-                        FilterChip(
-                            selected = selected,
-                            onClick = { mainViewModel.selectCategory(cat) },
-                            label = { Text("${cat.iconName} ${cat.label}") },
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = Color.White.copy(alpha = 0.9f)
-                            )
+                    Box(contentAlignment = Alignment.Center) {
+                        UserAvatar(
+                            user = currentUser,
+                            size = 42.dp,
+                            textSizeSp = 16
                         )
                     }
                 }
             }
 
+            // Top Category Filter Chips
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopStart)
+                    .padding(top = 62.dp, start = 12.dp, end = 12.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                FilterChip(
+                    selected = selectedCategory == null,
+                    onClick = { mainViewModel.selectCategory(null) },
+                    label = { Text("All Events") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = Color.White.copy(alpha = 0.92f)
+                    )
+                )
+
+                EventCategory.entries.forEach { cat ->
+                    val selected = selectedCategory == cat
+                    FilterChip(
+                        selected = selected,
+                        onClick = { mainViewModel.selectCategory(cat) },
+                        label = { Text("${cat.iconName} ${cat.label}") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = Color.White.copy(alpha = 0.92f)
+                        )
+                    )
+                }
+            }
+
+            // Bottom Right Floating Button: 👥 Friends & Discovery
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 24.dp, end = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                Surface(
+                    onClick = { isFriendsOpen = true },
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.95f),
+                    shadowElevation = 8.dp,
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(text = "👥", fontSize = 24.sp)
+                    }
+                }
+            }
+
             // Bottom Sheets
+            if (isFriendsOpen && currentUser != null) {
+                FriendsBottomSheet(
+                    authViewModel = authViewModel,
+                    currentUser = currentUser!!,
+                    onDismissRequest = { isFriendsOpen = false }
+                )
+            }
+
             if (isProfileOpen && currentUser != null) {
                 ProfileBottomSheet(
                     user = currentUser!!,
                     userEvents = mainViewModel.getUserCreatedEvents(),
                     onEventClick = { eventId -> mainViewModel.onMarkerClick(eventId) },
+                    onLocationVisibilityChanged = { isVisible ->
+                        authViewModel.updateLocationVisibility(isVisible)
+                    },
+                    onSocialsPublicityChanged = { isPublic ->
+                        authViewModel.updateSocialsPublicity(isPublic)
+                    },
+                    onAvatarPhotoPicked = { photoUrl ->
+                        authViewModel.updateProfilePhoto(photoUrl)
+                        currentUser?.let { user ->
+                            mainViewModel.updateUserAvatarInEvents(user.id, photoUrl, user.displayName)
+                        }
+                    },
+                    onSocialHandlesUpdated = { insta, tg ->
+                        authViewModel.updateSocialHandles(insta, tg)
+                    },
                     onDismissRequest = { mainViewModel.closeProfile() },
                     onLogoutClick = { authViewModel.logout() }
                 )
@@ -199,7 +207,7 @@ fun MainScreen(
                 EventDetailsBottomSheet(
                     event = event,
                     currentUserId = currentUser?.id,
-                    onJoinClick = { eventId -> mainViewModel.joinEvent(eventId) },
+                    onJoinClick = { eventId -> mainViewModel.onMarkerClick(eventId) },
                     onLeaveClick = { eventId -> mainViewModel.leaveEvent(eventId) },
                     onEditClick = { evt -> mainViewModel.openEditEventForm(evt) },
                     onDeleteClick = { eventId -> mainViewModel.deleteEvent(eventId) },

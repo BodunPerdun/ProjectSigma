@@ -16,13 +16,76 @@ class LocalAuthRepositoryImpl : AuthRepository {
     private val _currentUser = MutableStateFlow<User?>(null)
     override val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
+    private val nearbySampleUsers = listOf(
+        Pair(
+            User(
+                id = "usr_near_1",
+                email = "elena@example.com",
+                displayName = "Elena Rostova",
+                photoUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+                eventsCount = 4,
+                isLocationVisible = true,
+                isSocialsPublic = true,
+                instagramHandle = "elena_rostova",
+                telegramHandle = "elena_r"
+            ),
+            "120m away"
+        ),
+        Pair(
+            User(
+                id = "usr_near_2",
+                email = "mark@example.com",
+                displayName = "Mark Vance",
+                photoUrl = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
+                eventsCount = 2,
+                isLocationVisible = true,
+                isSocialsPublic = true,
+                instagramHandle = "mark_vance",
+                telegramHandle = "markv_dev"
+            ),
+            "340m away"
+        ),
+        Pair(
+            User(
+                id = "usr_near_3",
+                email = "sophia@example.com",
+                displayName = "Sophia Miller",
+                photoUrl = "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150",
+                eventsCount = 5,
+                isLocationVisible = true,
+                isSocialsPublic = false,
+                instagramHandle = "sophia_m",
+                telegramHandle = "sophia_m"
+            ),
+            "750m away"
+        ),
+        Pair(
+            User(
+                id = "usr_near_4",
+                email = "lucas@example.com",
+                displayName = "Lucas Wright",
+                photoUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+                eventsCount = 1,
+                isLocationVisible = true,
+                isSocialsPublic = true,
+                telegramHandle = "lucas_wright"
+            ),
+            "1.2km away"
+        )
+    )
+
     init {
         val testUser = User(
             id = "user_test_account_1",
             email = "test@example.com",
             displayName = "Test User",
             photoUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
-            eventsCount = 2
+            eventsCount = 2,
+            isLocationVisible = false,
+            isSocialsPublic = true,
+            friends = listOf("usr_near_1"),
+            instagramHandle = "test_user_app",
+            telegramHandle = "test_user_tg"
         )
         registeredAccounts["test@example.com"] = StoredAccount(
             user = testUser,
@@ -63,7 +126,9 @@ class LocalAuthRepositoryImpl : AuthRepository {
             id = "user_${trimmedEmail.hashCode()}",
             email = trimmedEmail,
             displayName = trimmedName,
-            eventsCount = 0
+            eventsCount = 0,
+            isLocationVisible = false,
+            isSocialsPublic = true
         )
 
         registeredAccounts[trimmedEmail] = StoredAccount(
@@ -81,7 +146,9 @@ class LocalAuthRepositoryImpl : AuthRepository {
             email = "google.user@example.com",
             displayName = "Google User",
             photoUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
-            eventsCount = 1
+            eventsCount = 1,
+            isLocationVisible = false,
+            isSocialsPublic = true
         )
         registeredAccounts[googleUser.email] = StoredAccount(googleUser, "google_oauth_pass")
         _currentUser.value = googleUser
@@ -100,5 +167,81 @@ class LocalAuthRepositoryImpl : AuthRepository {
                 registeredAccounts[current.email] = stored.copy(user = updated)
             }
         }
+    }
+
+    override fun updateLocationVisibility(isVisible: Boolean) {
+        _currentUser.value?.let { current ->
+            val updated = current.copy(isLocationVisible = isVisible)
+            _currentUser.value = updated
+            registeredAccounts[current.email]?.let { stored ->
+                registeredAccounts[current.email] = stored.copy(user = updated)
+            }
+        }
+    }
+
+    override fun updateSocialsPublicity(isPublic: Boolean) {
+        _currentUser.value?.let { current ->
+            val updated = current.copy(isSocialsPublic = isPublic)
+            _currentUser.value = updated
+            registeredAccounts[current.email]?.let { stored ->
+                registeredAccounts[current.email] = stored.copy(user = updated)
+            }
+        }
+    }
+
+    override fun updateProfilePhoto(photoUrl: String?) {
+        _currentUser.value?.let { current ->
+            val updated = current.copy(
+                photoUrl = photoUrl,
+                avatarSyncStatus = "PENDING_PUSH"
+            )
+            _currentUser.value = updated
+            registeredAccounts[current.email]?.let { stored ->
+                registeredAccounts[current.email] = stored.copy(user = updated)
+            }
+        }
+    }
+
+    override fun updateSocialHandles(instagram: String?, telegram: String?) {
+        _currentUser.value?.let { current ->
+            val updated = current.copy(
+                instagramHandle = instagram?.trim()?.removePrefix("@"),
+                telegramHandle = telegram?.trim()?.removePrefix("@")
+            )
+            _currentUser.value = updated
+            registeredAccounts[current.email]?.let { stored ->
+                registeredAccounts[current.email] = stored.copy(user = updated)
+            }
+        }
+    }
+
+    override fun addFriend(friendId: String) {
+        _currentUser.value?.let { current ->
+            if (!current.friends.contains(friendId)) {
+                val updatedFriends = current.friends + friendId
+                val updated = current.copy(friends = updatedFriends)
+                _currentUser.value = updated
+                registeredAccounts[current.email]?.let { stored ->
+                    registeredAccounts[current.email] = stored.copy(user = updated)
+                }
+            }
+        }
+    }
+
+    override fun removeFriend(friendId: String) {
+        _currentUser.value?.let { current ->
+            if (current.friends.contains(friendId)) {
+                val updatedFriends = current.friends - friendId
+                val updated = current.copy(friends = updatedFriends)
+                _currentUser.value = updated
+                registeredAccounts[current.email]?.let { stored ->
+                    registeredAccounts[current.email] = stored.copy(user = updated)
+                }
+            }
+        }
+    }
+
+    override fun getDiscoverableNearbyUsers(): List<Pair<User, String>> {
+        return nearbySampleUsers
     }
 }

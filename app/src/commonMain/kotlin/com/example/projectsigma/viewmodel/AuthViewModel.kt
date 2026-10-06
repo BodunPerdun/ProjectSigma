@@ -76,4 +76,39 @@ class AuthViewModel(private val authRepository: AuthRepository) {
     fun logout() {
         authRepository.logout()
     }
+
+    fun updateLocationVisibility(isVisible: Boolean) {
+        authRepository.updateLocationVisibility(isVisible)
+    }
+
+    fun updateSocialsPublicity(isPublic: Boolean) {
+        authRepository.updateSocialsPublicity(isPublic)
+    }
+
+    fun updateProfilePhoto(photoUrl: String?) {
+        authRepository.updateProfilePhoto(photoUrl)
+    }
+
+    fun updateSocialHandles(instagram: String?, telegram: String?) {
+        authRepository.updateSocialHandles(instagram, telegram)
+    }
+
+    fun addFriend(friendId: String) {
+        authRepository.addFriend(friendId)
+    }
+
+    fun removeFriend(friendId: String) {
+        authRepository.removeFriend(friendId)
+    }
+
+    fun getDiscoverableNearbyUsers(): List<Pair<User, String>> {
+        return authRepository.getDiscoverableNearbyUsers()
+    }
+
+    fun getFriendUsers(): List<User> {
+        val friendIds = currentUser.value?.friends ?: emptyList()
+        return authRepository.getDiscoverableNearbyUsers()
+            .map { it.first }
+            .filter { friendIds.contains(it.id) }
+    }
 }
