@@ -63,6 +63,7 @@ actual fun MapLibreMapContainer(
     onClusterClick: (cluster: EventCluster) -> Unit,
     onMapClick: (latitude: Double, longitude: Double) -> Unit,
     onZoomChanged: (zoom: Int) -> Unit,
+    myLocationTrigger: Int,
     modifier: Modifier
 ) {
     val context = LocalContext.current
@@ -223,6 +224,16 @@ actual fun MapLibreMapContainer(
         }
     }
 
+    // Smoothly animate camera to current GPS location whenever MyLocation button is tapped
+    LaunchedEffect(myLocationTrigger) {
+        if (myLocationTrigger > 0) {
+            val map = mapLibreMap
+            if (map != null) {
+                animateCameraToMyLocation(context, map)
+            }
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -273,6 +284,30 @@ actual fun MapLibreMapContainer(
         factory = { mapView },
         modifier = modifier.fillMaxSize()
     )
+}
+
+fun animateCameraToMyLocation(context: Context, map: MapLibreMap) {
+    try {
+        val locationComponent = map.locationComponent
+        if (locationComponent.isLocationComponentActivated && locationComponent.isLocationComponentEnabled) {
+            val lastLoc = locationComponent.lastKnownLocation
+            val targetLatLng = if (lastLoc != null) LatLng(lastLoc.latitude, lastLoc.longitude) else LatLng(51.5074, -0.1278)
+            map.animateCamera(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder()
+                        .target(targetLatLng)
+                        .zoom(16.0)
+                        .tilt(15.0)
+                        .build()
+                ),
+                1200
+            )
+        } else {
+            enableLocationComponent(context, map)
+        }
+    } catch (e: Exception) {
+        Log.e("MapLibreMapContainer", "Error moving camera to my location: ${e.message}")
+    }
 }
 
 private fun enableLocationComponent(

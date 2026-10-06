@@ -13,5 +13,6 @@ expect fun MapLibreMapContainer(
     onClusterClick: (cluster: EventCluster) -> Unit,
     onMapClick: (latitude: Double, longitude: Double) -> Unit,
     onZoomChanged: (zoom: Int) -> Unit,
-    modifier: Modifier
+    myLocationTrigger: Int = 0,
+    modifier: Modifier = Modifier
 )

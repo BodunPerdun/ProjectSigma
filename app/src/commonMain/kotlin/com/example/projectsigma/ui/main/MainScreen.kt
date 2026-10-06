@@ -106,6 +106,7 @@ fun MainScreen(
     var isFriendsOpen by remember { mutableStateOf(false) }
     var isSettingsOpen by remember { mutableStateOf(false) }
     var isNotificationsOpen by remember { mutableStateOf(false) }
+    var myLocationTrigger by remember { mutableStateOf(0) }
 
     // Automated 1-Hour Pre-Event Starting Reminder Checker
     LaunchedEffect(clusters, currentUser) {
@@ -147,6 +148,7 @@ fun MainScreen(
                 onClusterClick = { cluster -> mainViewModel.onClusterClick(cluster) },
                 onMapClick = { lat, lng -> mainViewModel.onMapClick(lat, lng) },
                 onZoomChanged = { zoom -> mainViewModel.onZoomChanged(zoom) },
+                myLocationTrigger = myLocationTrigger,
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -298,14 +300,33 @@ fun MainScreen(
                 }
             }
 
-            // Bottom Right Floating Button
+            // Bottom Right Floating Controls: My Location FAB & Friends FAB
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(bottom = 24.dp, end = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalAlignment = Alignment.End
             ) {
+                // Floating My Location FAB Button (LocationOn Icon)
+                Surface(
+                    onClick = { myLocationTrigger++ },
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.96f),
+                    shadowElevation = 8.dp,
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "My Location",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                // Friends FAB Button
                 Surface(
                     onClick = { isFriendsOpen = true },
                     shape = CircleShape,
