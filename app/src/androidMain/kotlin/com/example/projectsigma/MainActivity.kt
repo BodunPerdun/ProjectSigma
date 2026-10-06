@@ -10,12 +10,18 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
-import com.example.projectsigma.data.local.PersistentAuthRepositoryImpl
-import com.example.projectsigma.data.local.PersistentEventsRepositoryImpl
-import com.example.projectsigma.data.local.PersistentFriendRequestServiceImpl
-import com.example.projectsigma.data.local.PersistentNotificationsRepositoryImpl
+import com.example.projectsigma.data.remote.KtorAuthRepositoryImpl
+import com.example.projectsigma.data.remote.KtorEventsRepositoryImpl
+import com.example.projectsigma.data.remote.KtorFriendRequestServiceImpl
+import com.example.projectsigma.data.remote.KtorHttpClient
+import com.example.projectsigma.data.remote.KtorNotificationsRepositoryImpl
+import com.example.projectsigma.data.remote.MapWebSocketClient
+import com.example.projectsigma.data.remote.TokenManager
 import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.notification.NotificationHelper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -61,21 +67,39 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val persistentEventsRepository = PersistentEventsRepositoryImpl(applicationContext)
-        val persistentAuthRepository = PersistentAuthRepositoryImpl(applicationContext)
-        val persistentNotificationsRepository = PersistentNotificationsRepositoryImpl(applicationContext)
-        val persistentFriendRequestService = PersistentFriendRequestServiceImpl(
-            context = applicationContext,
-            authRepository = persistentAuthRepository,
-            notificationsRepository = persistentNotificationsRepository
-        )
+        // Initialize Ktor HTTP & WebSockets Network Repositories
+        val tokenManager = TokenManager(applicationContext)
+        val ktorClient = KtorHttpClient.createClient(tokenManager)
+
+        val ktorAuthRepository = KtorAuthRepositoryImpl(ktorClient, tokenManager)
+        val ktorEventsRepository = KtorEventsRepositoryImpl(ktorClient)
+        val ktorNotificationsRepository = KtorNotificationsRepositoryImpl(ktorClient)
+        val ktorFriendRequestService = KtorFriendRequestServiceImpl(ktorClient)
+
+        // Connect real-time WebSocket client
+        val webSocketClient = MapWebSocketClient(ktorClient)
+        webSocketClient.connect()
+
+        // Perform server health check on app startup in background Dispatchers.IO context
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val isHealthy = KtorHttpClient.checkServerHealth(ktorClient)
+                if (isHealthy) {
+                    Log.d("OkHttp", "Server Health Check OK at ${KtorHttpClient.BASE_URL}api/v1/health")
+                } else {
+                    Log.w("NetworkError", "Server health check failed at ${KtorHttpClient.BASE_URL}api/v1/health")
+                }
+            } catch (e: Exception) {
+                Log.e("NetworkError", "Failed to reach server at ${KtorHttpClient.BASE_URL}api/v1/health", e)
+            }
+        }
 
         setContent {
             App(
-                eventsRepository = persistentEventsRepository,
-                authRepository = persistentAuthRepository,
-                notificationsRepository = persistentNotificationsRepository,
-                friendRequestService = persistentFriendRequestService
+                eventsRepository = ktorEventsRepository,
+                authRepository = ktorAuthRepository,
+                notificationsRepository = ktorNotificationsRepository,
+                friendRequestService = ktorFriendRequestService
             )
         }
     }

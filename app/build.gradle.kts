@@ -33,6 +33,9 @@ kotlin {
             implementation(libs.coil.compose)
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.room.ktx)
+            implementation("io.ktor:ktor-client-okhttp:2.3.12")
+            implementation("androidx.security:security-crypto:1.1.0-alpha06")
+            implementation("com.google.firebase:firebase-messaging-ktx:24.0.0")
             implementation(compose.preview)
         }
         commonMain.dependencies {
@@ -45,6 +48,13 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
+            implementation("io.ktor:ktor-client-core:2.3.12")
+            implementation("io.ktor:ktor-client-cio:2.3.12")
+            implementation("io.ktor:ktor-client-content-negotiation:2.3.12")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.12")
+            implementation("io.ktor:ktor-client-websockets:2.3.12")
+            implementation("io.ktor:ktor-client-auth:2.3.12")
+            implementation("io.ktor:ktor-client-logging:2.3.12")
         }
     }
 }
