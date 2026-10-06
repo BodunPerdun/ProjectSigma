@@ -30,6 +30,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,8 +44,10 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.EventCategory
+import com.example.projectsigma.model.localizedLabel
 import com.example.projectsigma.ui.components.AsyncEventImage
 import com.example.projectsigma.ui.components.GalleryImagePickerButton
 import kotlinx.datetime.Clock
@@ -75,6 +78,9 @@ fun CreateEventBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val haptic = LocalHapticFeedback.current
+
+    val currentLanguage by AppLanguageManager.currentLanguage.collectAsState()
+    val s = AppLanguageManager.strings
 
     // Dynamically calculate current device moment defaults
     val nowLdt = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
@@ -176,12 +182,12 @@ fun CreateEventBottomSheet(
             horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = if (isEditing) "✏️ Edit Event Details" else "📍 Create Event Pin",
+                text = if (isEditing) s.editEventTitle else s.createEventTitle,
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
 
             Text(
-                text = "Pinned at Lat: ${round4(location.first)}, Lng: ${round4(location.second)}",
+                text = "Lat: ${round4(location.first)}, Lng: ${round4(location.second)}",
                 style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray)
             )
 
@@ -191,7 +197,7 @@ fun CreateEventBottomSheet(
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Event Title *") },
+                label = { Text(s.eventTitleLabel) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
@@ -201,7 +207,7 @@ fun CreateEventBottomSheet(
 
             // Category selector
             Text(
-                text = "Select Category",
+                text = s.selectCategoryLabel,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.DarkGray
@@ -220,7 +226,7 @@ fun CreateEventBottomSheet(
                     FilterChip(
                         selected = selected,
                         onClick = { selectedCategory = cat },
-                        label = { Text("${cat.iconName} ${cat.label}") },
+                        label = { Text("${cat.iconName} ${cat.localizedLabel}") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.primary
@@ -238,7 +244,7 @@ fun CreateEventBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Event Date",
+                    text = s.eventDateLabel,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.DarkGray
@@ -256,7 +262,7 @@ fun CreateEventBottomSheet(
                         endHour = (currentLdt.hour + 1) % 24
                         endMinute = currentLdt.minute
                     }) {
-                        Text("⚡ Reset to Now", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(s.resetToNowBtn, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -271,7 +277,7 @@ fun CreateEventBottomSheet(
                 OutlinedTextField(
                     value = selectedDateText,
                     onValueChange = {},
-                    label = { Text("Date (DD.MM.YYYY) *") },
+                    label = { Text("${s.eventDateLabel} (DD.MM.YYYY) *") },
                     singleLine = true,
                     readOnly = true,
                     enabled = false,
@@ -284,7 +290,7 @@ fun CreateEventBottomSheet(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     trailingIcon = {
-                        Text("📅 Pick Date", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                        Text("📅", fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
                     }
                 )
             }
@@ -293,7 +299,7 @@ fun CreateEventBottomSheet(
 
             // SEPARATED FIELD 2 & 3: Hours Interval Fields
             Text(
-                text = "Event Time Interval (Hours)",
+                text = s.timeIntervalLabel,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.DarkGray
@@ -313,7 +319,7 @@ fun CreateEventBottomSheet(
                     OutlinedTextField(
                         value = formatTime(startHour, startMinute),
                         onValueChange = {},
-                        label = { Text("Start Hour *") },
+                        label = { Text(s.startHourLabel) },
                         singleLine = true,
                         readOnly = true,
                         enabled = false,
@@ -340,7 +346,7 @@ fun CreateEventBottomSheet(
                     OutlinedTextField(
                         value = formatTime(endHour, endMinute),
                         onValueChange = {},
-                        label = { Text("End Hour *") },
+                        label = { Text(s.endHourLabel) },
                         singleLine = true,
                         readOnly = true,
                         enabled = false,
@@ -363,7 +369,7 @@ fun CreateEventBottomSheet(
             if (isStartInPast) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "⚠️ Selected Start Time is in the past! Tap 'Reset to Now' or pick a future time.",
+                    text = s.pastTimeWarning,
                     color = MaterialTheme.colorScheme.error,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -371,7 +377,7 @@ fun CreateEventBottomSheet(
             } else if (!isTimeIntervalValid) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "⚠️ End hour (${formatTime(endHour, endMinute)}) cannot be earlier than or equal to Start hour (${formatTime(startHour, startMinute)})",
+                    text = s.intervalOrderWarning,
                     color = MaterialTheme.colorScheme.error,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
@@ -382,7 +388,7 @@ fun CreateEventBottomSheet(
 
             // Photo Attachment Section
             Text(
-                text = "Attach Event Cover Photo",
+                text = s.attachPhotoLabel,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.DarkGray
@@ -414,9 +420,9 @@ fun CreateEventBottomSheet(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Photo attached!", fontSize = 12.sp, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+                    Text(s.photoAttachedMsg, fontSize = 12.sp, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
                     TextButton(onClick = { photoUrl = null }) {
-                        Text("Remove Photo", fontSize = 12.sp, color = Color.Red)
+                        Text(s.removePhotoBtn, fontSize = 12.sp, color = Color.Red)
                     }
                 }
             }
@@ -427,7 +433,7 @@ fun CreateEventBottomSheet(
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                label = { Text("Description") },
+                label = { Text(s.descriptionLabel) },
                 minLines = 3,
                 maxLines = 5,
                 modifier = Modifier.fillMaxWidth(),
@@ -451,9 +457,9 @@ fun CreateEventBottomSheet(
                     if (title.isBlank()) {
                         errorMessage = "Event title is required."
                     } else if (isStartInPast) {
-                        errorMessage = "Start time cannot be in the past."
+                        errorMessage = s.pastTimeWarning
                     } else if (!isTimeIntervalValid) {
-                        errorMessage = "End hour must be later than Start hour."
+                        errorMessage = s.intervalOrderWarning
                     } else {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val formattedDateTime = "$selectedDateText ${formatTime(startHour, startMinute)} - ${formatTime(endHour, endMinute)}"
@@ -468,7 +474,7 @@ fun CreateEventBottomSheet(
                 shape = RoundedCornerShape(25.dp)
             ) {
                 Text(
-                    text = if (isEditing) "Save Changes" else "Publish Event on Map",
+                    text = if (isEditing) s.saveChangesBtn else s.publishEventBtn,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -493,7 +499,7 @@ fun CreateEventBottomSheet(
                     }
                     showDatePicker = false
                 }) {
-                    Text("Confirm Date")
+                    Text(s.done)
                 }
             },
             dismissButton = {
@@ -524,7 +530,7 @@ fun CreateEventBottomSheet(
 
                     showStartTimePicker = false
                 }) {
-                    Text("Set Start Hour")
+                    Text(s.done)
                 }
             },
             dismissButton = {
@@ -537,7 +543,7 @@ fun CreateEventBottomSheet(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Select Start Hour", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
+                Text(s.startHourLabel, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
                 TimePicker(state = startTimePickerState)
             }
         }
@@ -553,7 +559,7 @@ fun CreateEventBottomSheet(
                     endMinute = endTimePickerState.minute
                     showEndTimePicker = false
                 }) {
-                    Text("Set End Hour")
+                    Text(s.done)
                 }
             },
             dismissButton = {
@@ -566,7 +572,7 @@ fun CreateEventBottomSheet(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Select End Hour", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
+                Text(s.endHourLabel, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
                 TimePicker(state = endTimePickerState)
             }
         }

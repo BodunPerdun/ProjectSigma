@@ -93,6 +93,10 @@ class AuthViewModel(private val authRepository: AuthRepository) {
         authRepository.updateSocialHandles(instagram, telegram)
     }
 
+    fun updateUserBio(bio: String?) {
+        authRepository.updateUserBio(bio)
+    }
+
     fun addFriend(friendId: String) {
         authRepository.addFriend(friendId)
     }

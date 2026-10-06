@@ -81,7 +81,7 @@ fun SplashScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = "SocialMap",
+                text = "LocaPop",
                 fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White

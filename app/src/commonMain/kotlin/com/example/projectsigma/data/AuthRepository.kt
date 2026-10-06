@@ -14,6 +14,7 @@ interface AuthRepository {
     fun updateSocialsPublicity(isPublic: Boolean)
     fun updateProfilePhoto(photoUrl: String?)
     fun updateSocialHandles(instagram: String?, telegram: String?)
+    fun updateUserBio(bio: String?)
     fun addFriend(friendId: String)
     fun removeFriend(friendId: String)
     fun getDiscoverableNearbyUsers(): List<Pair<User, String>>

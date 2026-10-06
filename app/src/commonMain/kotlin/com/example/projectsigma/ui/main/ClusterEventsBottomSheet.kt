@@ -23,6 +23,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.model.EventCluster
 import com.example.projectsigma.ui.components.AsyncEventImage
 
@@ -43,6 +46,9 @@ fun ClusterEventsBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    val currentLanguage by AppLanguageManager.currentLanguage.collectAsState()
+    val s = AppLanguageManager.strings
+
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
@@ -55,12 +61,12 @@ fun ClusterEventsBottomSheet(
                 .padding(24.dp)
         ) {
             Text(
-                text = "📍 Events Cluster (${cluster.count})",
+                text = "${s.clusterTitle} (${cluster.count})",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
 
             Text(
-                text = "Select an event to view full details:",
+                text = s.clusterSubtitle,
                 style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray),
                 modifier = Modifier.padding(bottom = 16.dp)
             )
@@ -123,7 +129,7 @@ fun ClusterEventsBottomSheet(
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = "Organized by ${event.createdByName}",
+                                    text = "${s.organizedBy} ${event.createdByName}",
                                     fontSize = 11.sp,
                                     color = Color.Gray
                                 )

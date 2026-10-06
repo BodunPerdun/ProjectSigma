@@ -26,6 +26,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +38,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.model.User
 import com.example.projectsigma.ui.components.UserAvatar
 import com.example.projectsigma.viewmodel.AuthViewModel
@@ -51,6 +53,9 @@ fun FriendsBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val uriHandler = LocalUriHandler.current
+
+    val currentLanguage by AppLanguageManager.currentLanguage.collectAsState()
+    val s = AppLanguageManager.strings
 
     var selectedTabIndex by remember { mutableStateOf(0) }
     var selectedUserProfile by remember { mutableStateOf<User?>(null) }
@@ -70,7 +75,7 @@ fun FriendsBottomSheet(
                 .padding(24.dp)
         ) {
             Text(
-                text = "👥 Friends & People Nearby",
+                text = s.friendsSheetTitle,
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
 
@@ -86,7 +91,7 @@ fun FriendsBottomSheet(
                     onClick = { selectedTabIndex = 0 },
                     text = {
                         Text(
-                            text = "My Friends (${friendUsers.size})",
+                            text = "${s.myFriendsTab} (${friendUsers.size})",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
@@ -97,7 +102,7 @@ fun FriendsBottomSheet(
                     onClick = { selectedTabIndex = 1 },
                     text = {
                         Text(
-                            text = "📡 People Nearby",
+                            text = s.peopleNearbyTab,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
@@ -118,10 +123,10 @@ fun FriendsBottomSheet(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Text("👥 No friends added yet", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(s.noFriendsYetMsg, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                "Switch to the '📡 People Nearby' tab to discover and add friends around you!",
+                                s.noFriendsSubtitle,
                                 fontSize = 12.sp,
                                 color = Color.Gray
                             )
@@ -165,7 +170,7 @@ fun FriendsBottomSheet(
                                                 fontSize = 14.sp
                                             )
                                             Text(
-                                                text = "Tap to view profile",
+                                                text = s.tapToViewProfile,
                                                 fontSize = 12.sp,
                                                 color = Color.Gray
                                             )
@@ -178,7 +183,7 @@ fun FriendsBottomSheet(
                                                 contentColor = MaterialTheme.colorScheme.error
                                             )
                                         ) {
-                                            Text("Remove", fontSize = 11.sp)
+                                            Text(s.removeFriendBtn, fontSize = 11.sp)
                                         }
                                     }
                                 }
@@ -206,13 +211,13 @@ fun FriendsBottomSheet(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "⚠️ Hidden from People Nearby",
+                                            text = s.hiddenNearbyWarning,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
                                             color = Color(0xFF856404)
                                         )
                                         Text(
-                                            text = "Turn ON visibility in profile to let nearby people discover you.",
+                                            text = s.visibleNearbySubtitle,
                                             fontSize = 11.sp,
                                             color = Color(0xFF856404)
                                         )
@@ -223,14 +228,14 @@ fun FriendsBottomSheet(
                                         shape = RoundedCornerShape(12.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF856404))
                                     ) {
-                                        Text("Enable", fontSize = 11.sp, color = Color.White)
+                                        Text(s.enableBtn, fontSize = 11.sp, color = Color.White)
                                     }
                                 }
                             }
                         }
 
                         Text(
-                            text = "People in your immediate area:",
+                            text = s.peopleNearbySubtitle,
                             fontSize = 12.sp,
                             color = Color.Gray,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -291,7 +296,7 @@ fun FriendsBottomSheet(
                                                 }
                                             }
                                             Text(
-                                                text = "Tap to view profile",
+                                                text = s.tapToViewProfile,
                                                 fontSize = 12.sp,
                                                 color = Color.Gray
                                             )
@@ -303,7 +308,7 @@ fun FriendsBottomSheet(
                                                 shape = RoundedCornerShape(14.dp)
                                             ) {
                                                 Text(
-                                                    text = "✓ Friend",
+                                                    text = s.friendBadge,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color(0xFF2E7D32),
@@ -315,7 +320,7 @@ fun FriendsBottomSheet(
                                                 onClick = { authViewModel.addFriend(nearbyUser.id) },
                                                 shape = RoundedCornerShape(16.dp)
                                             ) {
-                                                Text("➕ Add", fontSize = 11.sp)
+                                                Text(s.addFriendBtn, fontSize = 11.sp)
                                             }
                                         }
                                     }
@@ -328,7 +333,7 @@ fun FriendsBottomSheet(
         }
     }
 
-    // Modal Sheet: Friend / Nearby User Full Profile Card with Privacy-Aware Social Media Links
+    // Modal Sheet: Friend / Nearby User Full Profile Card with Privacy-Aware Social Media Links & Bio
     selectedUserProfile?.let { targetUser ->
         val userSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val isAlreadyFriend = currentUser.friends.contains(targetUser.id)
@@ -357,9 +362,34 @@ fun FriendsBottomSheet(
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                 )
 
+                // Display User Bio if present
+                if (!targetUser.bio.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        color = Color(0xFFF8F9FA),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = s.bioTitle,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                color = Color.Gray
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = targetUser.bio,
+                                fontSize = 12.sp,
+                                color = Color.DarkGray
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Social Media Deep Link Chips (Privacy-Aware: Checked against targetUser.isSocialsPublic)
+                // Social Media Deep Link Chips (Privacy-Aware: Checks targetUser.isSocialsPublic)
                 if (targetUser.isSocialsPublic) {
                     val hasSocials = !targetUser.instagramHandle.isNullOrBlank() || !targetUser.telegramHandle.isNullOrBlank()
                     if (hasSocials) {
@@ -404,7 +434,7 @@ fun FriendsBottomSheet(
                             }
                         }
                     } else {
-                        Text("No social links provided", fontSize = 12.sp, color = Color.Gray)
+                        Text(s.noSocialsMsg, fontSize = 12.sp, color = Color.Gray)
                     }
                 } else {
                     Surface(
@@ -412,7 +442,7 @@ fun FriendsBottomSheet(
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
-                            text = "🔒 Social links are private",
+                            text = s.socialsPrivateMsg,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             color = Color.Gray,
@@ -441,20 +471,20 @@ fun FriendsBottomSheet(
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = "Events Attended",
+                                text = s.eventsAttended,
                                 fontSize = 11.sp,
                                 color = Color.Gray
                             )
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "Active",
+                                text = s.accountStatusActive,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF4CAF50)
                             )
                             Text(
-                                text = "Account Status",
+                                text = s.accountStatusTitle,
                                 fontSize = 11.sp,
                                 color = Color.Gray
                             )
@@ -482,7 +512,7 @@ fun FriendsBottomSheet(
                                 contentColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            Text("Remove Friend", fontWeight = FontWeight.Bold)
+                            Text(s.removeFriendBtn, fontWeight = FontWeight.Bold)
                         }
                     } else {
                         Button(
@@ -495,7 +525,7 @@ fun FriendsBottomSheet(
                                 .height(50.dp),
                             shape = RoundedCornerShape(25.dp)
                         ) {
-                            Text("➕ Add Friend", fontWeight = FontWeight.Bold)
+                            Text(s.addFriendBtn, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -507,7 +537,7 @@ fun FriendsBottomSheet(
                         shape = RoundedCornerShape(25.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0E0E0))
                     ) {
-                        Text("Close", color = Color.DarkGray, fontWeight = FontWeight.Bold)
+                        Text(s.closeBtn, color = Color.DarkGray, fontWeight = FontWeight.Bold)
                     }
                 }
             }

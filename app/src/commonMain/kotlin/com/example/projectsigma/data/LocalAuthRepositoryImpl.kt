@@ -27,7 +27,8 @@ class LocalAuthRepositoryImpl : AuthRepository {
                 isLocationVisible = true,
                 isSocialsPublic = true,
                 instagramHandle = "elena_rostova",
-                telegramHandle = "elena_r"
+                telegramHandle = "elena_r",
+                bio = "Software engineer & jazz enthusiast in London 🎷☕"
             ),
             "120m away"
         ),
@@ -41,7 +42,8 @@ class LocalAuthRepositoryImpl : AuthRepository {
                 isLocationVisible = true,
                 isSocialsPublic = true,
                 instagramHandle = "mark_vance",
-                telegramHandle = "markv_dev"
+                telegramHandle = "markv_dev",
+                bio = "Co-founder at TechVentures. Always open to new startup ideas! 🚀"
             ),
             "340m away"
         ),
@@ -55,7 +57,8 @@ class LocalAuthRepositoryImpl : AuthRepository {
                 isLocationVisible = true,
                 isSocialsPublic = false,
                 instagramHandle = "sophia_m",
-                telegramHandle = "sophia_m"
+                telegramHandle = "sophia_m",
+                bio = "Art gallery curator, digital sculpture lover, and foodie. 🎨🍕"
             ),
             "750m away"
         ),
@@ -68,7 +71,8 @@ class LocalAuthRepositoryImpl : AuthRepository {
                 eventsCount = 1,
                 isLocationVisible = true,
                 isSocialsPublic = true,
-                telegramHandle = "lucas_wright"
+                telegramHandle = "lucas_wright",
+                bio = "Sports & fitness coach. Running, cycling, and outdoor events! 🏃‍♂️🚴‍♂️"
             ),
             "1.2km away"
         )
@@ -85,7 +89,8 @@ class LocalAuthRepositoryImpl : AuthRepository {
             isSocialsPublic = true,
             friends = listOf("usr_near_1"),
             instagramHandle = "test_user_app",
-            telegramHandle = "test_user_tg"
+            telegramHandle = "test_user_tg",
+            bio = "Love jazz music, tech meetups, and outdoor sports in London! 🎷☕"
         )
         registeredAccounts["test@example.com"] = StoredAccount(
             user = testUser,
@@ -208,6 +213,16 @@ class LocalAuthRepositoryImpl : AuthRepository {
                 instagramHandle = instagram?.trim()?.removePrefix("@"),
                 telegramHandle = telegram?.trim()?.removePrefix("@")
             )
+            _currentUser.value = updated
+            registeredAccounts[current.email]?.let { stored ->
+                registeredAccounts[current.email] = stored.copy(user = updated)
+            }
+        }
+    }
+
+    override fun updateUserBio(bio: String?) {
+        _currentUser.value?.let { current ->
+            val updated = current.copy(bio = bio?.trim())
             _currentUser.value = updated
             registeredAccounts[current.email]?.let { stored ->
                 registeredAccounts[current.email] = stored.copy(user = updated)

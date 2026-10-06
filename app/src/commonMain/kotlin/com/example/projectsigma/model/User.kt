@@ -14,5 +14,6 @@ data class User(
     val friends: List<String> = emptyList(),
     val avatarSyncStatus: String = "PENDING_PUSH",
     val instagramHandle: String? = null,
-    val telegramHandle: String? = null
+    val telegramHandle: String? = null,
+    val bio: String? = null
 )

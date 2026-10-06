@@ -1,5 +1,7 @@
 package com.example.projectsigma.model
 
+import com.example.projectsigma.i18n.AppLanguage
+import com.example.projectsigma.i18n.AppLanguageManager
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -22,3 +24,27 @@ enum class EventCategory(
         }
     }
 }
+
+val EventCategory.localizedLabel: String
+    get() {
+        val s = AppLanguageManager.strings
+        return when (this) {
+            EventCategory.PARTY -> s.catParty
+            EventCategory.CULTURE -> s.catCulture
+            EventCategory.SPORTS -> s.catSport
+            EventCategory.FOOD -> s.catFood
+            EventCategory.MEETUP -> s.catMeetup
+            EventCategory.EDUCATION -> when (AppLanguageManager.currentLanguage.value) {
+                AppLanguage.RUSSIAN -> "Мастер-класс & Технологии"
+                AppLanguage.UKRAINIAN -> "Майстер-клас & Технології"
+                AppLanguage.POLISH -> "Warsztaty & Technologia"
+                AppLanguage.ENGLISH -> "Workshop & Tech"
+            }
+            EventCategory.OTHER -> when (AppLanguageManager.currentLanguage.value) {
+                AppLanguage.RUSSIAN -> "Другие события"
+                AppLanguage.UKRAINIAN -> "Інші події"
+                AppLanguage.POLISH -> "Inne wydarzenia"
+                AppLanguage.ENGLISH -> "Other Events"
+            }
+        }
+    }

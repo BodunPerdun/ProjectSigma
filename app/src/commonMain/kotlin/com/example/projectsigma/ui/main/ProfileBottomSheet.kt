@@ -25,7 +25,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -36,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +51,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.User
 import com.example.projectsigma.ui.components.AsyncEventImage
@@ -64,6 +68,7 @@ fun ProfileBottomSheet(
     onSocialsPublicityChanged: (Boolean) -> Unit = {},
     onAvatarPhotoPicked: (String?) -> Unit = {},
     onSocialHandlesUpdated: (instagram: String?, telegram: String?) -> Unit = { _, _ -> },
+    onBioUpdated: (String?) -> Unit = {},
     onDismissRequest: () -> Unit,
     onLogoutClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -71,12 +76,18 @@ fun ProfileBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val uriHandler = LocalUriHandler.current
 
+    val currentLanguage by AppLanguageManager.currentLanguage.collectAsState()
+    val s = AppLanguageManager.strings
+
     val avatarInteractionSource = remember { MutableInteractionSource() }
     val isAvatarPressed by avatarInteractionSource.collectIsPressedAsState()
 
     var showSocialEditDialog by remember { mutableStateOf(false) }
+    var showBioEditDialog by remember { mutableStateOf(false) }
+
     var instaInput by remember { mutableStateOf(user.instagramHandle ?: "") }
     var tgInput by remember { mutableStateOf(user.telegramHandle ?: "") }
+    var bioInput by remember { mutableStateOf(user.bio ?: "") }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -87,23 +98,19 @@ fun ProfileBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Interactive Profile Avatar Box: "Change" overlay appears ONLY when pressing avatar
-            Box(
-                contentAlignment = Alignment.TopEnd
-            ) {
+            // Section 1: User Header Block (Avatar, Name, Email Badge)
+            Box(contentAlignment = Alignment.TopEnd) {
                 GalleryImagePickerContainer(
                     interactionSource = avatarInteractionSource,
-                    onImagePicked = { pickedUri ->
-                        onAvatarPhotoPicked(pickedUri)
-                    }
+                    onImagePicked = { pickedUri -> onAvatarPhotoPicked(pickedUri) }
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(100.dp)
+                            .size(96.dp)
                             .clip(CircleShape)
                             .background(
                                 color = MaterialTheme.colorScheme.primaryContainer,
@@ -113,11 +120,10 @@ fun ProfileBottomSheet(
                     ) {
                         UserAvatar(
                             user = user,
-                            size = 100.dp,
-                            textSizeSp = 40
+                            size = 96.dp,
+                            textSizeSp = 38
                         )
 
-                        // Clean overlay banner "Change" appears ONLY when pressing/touching avatar
                         if (isAvatarPressed) {
                             Box(
                                 modifier = Modifier
@@ -136,7 +142,6 @@ fun ProfileBottomSheet(
                     }
                 }
 
-                // Delete Photo Cross Button Overlay on Top-Right Corner
                 if (user.photoUrl != null) {
                     Surface(
                         onClick = { onAvatarPhotoPicked(null) },
@@ -157,92 +162,49 @@ fun ProfileBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Text(
                 text = user.displayName,
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
 
-            // Display private email ONLY in own profile
-            Text(
-                text = user.email,
-                style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray)
-            )
+            Spacer(modifier = Modifier.height(2.dp))
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Social Media Deep Link Chips Section (Instagram & Telegram)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                color = Color(0xFFF0F4F8),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                if (!user.instagramHandle.isNullOrBlank()) {
-                    Surface(
-                        color = Color(0xFFFCE4EC),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.clickable {
-                            uriHandler.openUri("https://instagram.com/_u/${user.instagramHandle}")
-                        }
-                    ) {
-                        Text(
-                            text = "📸 @${user.instagramHandle}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFC2185B),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-
-                if (!user.telegramHandle.isNullOrBlank()) {
-                    Surface(
-                        color = Color(0xFFE3F2FD),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.clickable {
-                            uriHandler.openUri("https://t.me/${user.telegramHandle}")
-                        }
-                    ) {
-                        Text(
-                            text = "✈️ @${user.telegramHandle}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1976D2),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-
-                TextButton(onClick = { showSocialEditDialog = true }) {
-                    Text("✏️ Edit Socials", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
+                Text(
+                    text = user.email,
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // User Stats Card
+            // Section 2: User Stats Card (Created Events & Friends)
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(14.dp),
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "${userEvents.size}",
-                            fontSize = 22.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = "Created Events",
+                            text = s.createdEventsTitle,
                             fontSize = 12.sp,
                             color = Color.Gray
                         )
@@ -250,12 +212,12 @@ fun ProfileBottomSheet(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "${user.friends.size}",
-                            fontSize = 22.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = "Friends",
+                            text = s.friendsCountTitle,
                             fontSize = 12.sp,
                             color = Color.Gray
                         )
@@ -263,85 +225,192 @@ fun ProfileBottomSheet(
                 }
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Section 3: Bio Description Card
+            Surface(
+                color = Color(0xFFF8F9FA),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = s.bioTitle,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        TextButton(onClick = { showBioEditDialog = true }) {
+                            Text(s.editBioBtn, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Text(
+                        text = if (!user.bio.isNullOrBlank()) user.bio else s.noBioMsg,
+                        fontSize = 12.sp,
+                        color = if (!user.bio.isNullOrBlank()) Color.DarkGray else Color.Gray
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Section 4: Social Media Deep Link Bar
+            Surface(
+                color = Color(0xFFF8F9FA),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (!user.instagramHandle.isNullOrBlank()) {
+                            Surface(
+                                color = Color(0xFFFCE4EC),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.clickable {
+                                    uriHandler.openUri("https://instagram.com/_u/${user.instagramHandle}")
+                                }
+                            ) {
+                                Text(
+                                    text = "📸 @${user.instagramHandle}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFC2185B),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+
+                        if (!user.telegramHandle.isNullOrBlank()) {
+                            Surface(
+                                color = Color(0xFFE3F2FD),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.clickable {
+                                    uriHandler.openUri("https://t.me/${user.telegramHandle}")
+                                }
+                            ) {
+                                Text(
+                                    text = "✈️ @${user.telegramHandle}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1976D2),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+
+                        if (user.instagramHandle.isNullOrBlank() && user.telegramHandle.isNullOrBlank()) {
+                            Text(s.noSocialsMsg, fontSize = 12.sp, color = Color.Gray)
+                        }
+                    }
+
+                    TextButton(onClick = { showSocialEditDialog = true }) {
+                        Text(s.editSocialsBtn, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Section 5: Grouped Privacy & Settings Card
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "⚙️ Privacy Settings",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color.DarkGray
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Switch 1: Location Discovery
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = s.visibleNearbyTitle,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = s.visibleNearbySubtitle,
+                                fontSize = 11.sp,
+                                color = Color.Gray
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Switch(
+                            checked = user.isLocationVisible,
+                            onCheckedChange = { isChecked ->
+                                onLocationVisibilityChanged(isChecked)
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        color = Color(0xFFE0E0E0)
+                    )
+
+                    // Switch 2: Public Social Links
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = s.publicSocialsTitle,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = s.publicSocialsSubtitle,
+                                fontSize = 11.sp,
+                                color = Color.Gray
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Switch(
+                            checked = user.isSocialsPublic,
+                            onCheckedChange = { isChecked ->
+                                onSocialsPublicityChanged(isChecked)
+                            }
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Privacy Settings Switch 1: Nearby Location Discovery
-            Surface(
-                color = Color(0xFFF8F9FA),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "📡 Visible to People Nearby",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "Allow people nearby on SocialMap to discover your profile",
-                            fontSize = 11.sp,
-                            color = Color.Gray
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Switch(
-                        checked = user.isLocationVisible,
-                        onCheckedChange = { isChecked ->
-                            onLocationVisibilityChanged(isChecked)
-                        }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Privacy Settings Switch 2: Public Social Media Links
-            Surface(
-                color = Color(0xFFF8F9FA),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "🌐 Public Social Media Links",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "Allow other users on SocialMap to see your Instagram & Telegram links",
-                            fontSize = 11.sp,
-                            color = Color.Gray
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Switch(
-                        checked = user.isSocialsPublic,
-                        onCheckedChange = { isChecked ->
-                            onSocialsPublicityChanged(isChecked)
-                        }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Section: User Created Events
+            // Section 6: User Created Events List
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Start
             ) {
                 Text(
-                    text = "My Created Events",
+                    text = s.createdEventsTitle,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
@@ -352,13 +421,13 @@ fun ProfileBottomSheet(
                 Text(
                     text = "You haven't created any events yet. Tap empty map space to add your first event!",
                     style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray),
-                    modifier = Modifier.padding(vertical = 16.dp)
+                    modifier = Modifier.padding(vertical = 12.dp)
                 )
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp),
+                        .height(160.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(userEvents) { event ->
@@ -381,7 +450,7 @@ fun ProfileBottomSheet(
                                 if (event.photoUrl != null) {
                                     Box(
                                         modifier = Modifier
-                                            .size(48.dp)
+                                            .size(44.dp)
                                             .clip(RoundedCornerShape(10.dp))
                                     ) {
                                         AsyncEventImage(
@@ -416,9 +485,9 @@ fun ProfileBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Logout Button
+            // Section 7: Sign Out Button
             OutlinedButton(
                 onClick = {
                     onLogoutClick()
@@ -426,14 +495,14 @@ fun ProfileBottomSheet(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(25.dp),
+                    .height(48.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.error
                 )
             ) {
                 Text(
-                    text = "Sign Out",
+                    text = s.signOutBtn,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -441,7 +510,7 @@ fun ProfileBottomSheet(
         }
     }
 
-    // Modal Sheet: Edit Social Handles (Instagram & Telegram)
+    // Modal Sheet 1: Edit Social Handles (Instagram & Telegram)
     if (showSocialEditDialog) {
         val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
@@ -455,15 +524,11 @@ fun ProfileBottomSheet(
                     .padding(24.dp)
             ) {
                 Text(
-                    text = "✏️ Link Social Media Handles",
+                    text = s.linkSocialsTitle,
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                 )
 
-                Text(
-                    text = "Allow friends and nearby people to connect with you:",
-                    style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray),
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+                Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = instaInput,
@@ -499,7 +564,56 @@ fun ProfileBottomSheet(
                         .height(48.dp),
                     shape = RoundedCornerShape(24.dp)
                 ) {
-                    Text("Save Social Links", fontWeight = FontWeight.Bold)
+                    Text(s.done, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+
+    // Modal Sheet 2: Edit Bio Description
+    if (showBioEditDialog) {
+        val bioSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showBioEditDialog = false },
+            sheetState = bioSheetState,
+            containerColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                Text(
+                    text = s.editBioBtn,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = bioInput,
+                    onValueChange = { bioInput = it },
+                    label = { Text(s.bioTitle) },
+                    placeholder = { Text("Tell other users about your hobbies and interests...") },
+                    minLines = 3,
+                    maxLines = 5,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        onBioUpdated(bioInput)
+                        showBioEditDialog = false
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Text(s.saveBioBtn, fontWeight = FontWeight.Bold)
                 }
             }
         }
