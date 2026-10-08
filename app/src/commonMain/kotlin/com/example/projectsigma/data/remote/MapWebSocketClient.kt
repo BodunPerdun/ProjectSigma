@@ -26,21 +26,25 @@ class MapWebSocketClient(
         if (isConnected) return
         scope.launch {
             try {
+                println("[OkHttp] Connecting to Map WebSocket at ${KtorHttpClient.WS_URL}...")
                 val session = client.webSocketSession(KtorHttpClient.WS_URL)
                 isConnected = true
+                println("[OkHttp] Map WebSocket Connected Successfully!")
 
                 for (frame in session.incoming) {
                     if (frame is Frame.Text) {
                         val text = frame.readText()
+                        println("[OkHttp] Raw WS Frame received: $text")
                         try {
                             val wsMessage = KtorHttpClient.jsonConfig.decodeFromString<MapWebSocketMessage>(text)
                             _messages.emit(wsMessage)
                         } catch (e: Exception) {
-                            // parse error ignore
+                            println("[NetworkError] WS JSON decode error: ${e.message}")
                         }
                     }
                 }
             } catch (e: Exception) {
+                println("[NetworkError] WS connection error: ${e.message}")
                 isConnected = false
             } finally {
                 isConnected = false

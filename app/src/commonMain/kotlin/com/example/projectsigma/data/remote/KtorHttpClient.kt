@@ -13,9 +13,12 @@ import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
@@ -56,31 +59,51 @@ object KtorHttpClient {
 
             defaultRequest {
                 contentType(ContentType.Application.Json)
+                if (tokenManager != null) {
+                    val token = tokenManager.getAccessToken()
+                    val path = url.build().encodedPath
+                    val isAuthRoute = path.contains("/auth/") || path.contains("/health")
+                    if (!token.isNullOrBlank() && !isAuthRoute) {
+                        header("Authorization", "Bearer $token")
+                    }
+                }
             }
 
             if (tokenManager != null) {
                 install(Auth) {
                     bearer {
+                        sendWithoutRequest { request: HttpRequestBuilder ->
+                            val path = request.url.build().encodedPath
+                            path.contains("/auth/") || path.contains("/health")
+                        }
+
                         loadTokens {
                             val access = tokenManager.getAccessToken()
-                            val refresh = tokenManager.getRefreshToken()
-                            if (!access.isNullOrBlank() && !refresh.isNullOrBlank()) {
+                            val refresh = tokenManager.getRefreshToken() ?: ""
+                            if (!access.isNullOrBlank()) {
                                 BearerTokens(access, refresh)
                             } else null
                         }
 
                         refreshTokens {
                             try {
-                                val oldRefresh = tokenManager.getRefreshToken() ?: return@refreshTokens null
-                                val response: ApiResponse<TokenResponse> = client.post("${BASE_URL}api/v1/auth/refresh") {
+                                val oldRefresh = tokenManager.getRefreshToken()
+                                if (oldRefresh.isNullOrBlank()) {
+                                    tokenManager.clearTokens()
+                                    return@refreshTokens null
+                                }
+                                val baseUrl = BASE_URL.removeSuffix("/")
+                                val response: ApiResponse<TokenResponse> = client.post("$baseUrl/api/v1/auth/refresh") {
                                     contentType(ContentType.Application.Json)
                                     setBody(mapOf("refreshToken" to oldRefresh))
                                 }.body()
 
                                 val newTokens = response.data
-                                if (response.success && newTokens != null) {
-                                    tokenManager.saveTokens(newTokens.accessToken, newTokens.refreshToken)
-                                    BearerTokens(newTokens.accessToken, newTokens.refreshToken)
+                                val newAccess = newTokens?.validAccessToken
+                                val newRefresh = newTokens?.validRefreshToken ?: ""
+                                if (response.success && !newAccess.isNullOrBlank()) {
+                                    tokenManager.saveTokens(newAccess, newRefresh)
+                                    BearerTokens(newAccess, newRefresh)
                                 } else {
                                     tokenManager.clearTokens()
                                     null
@@ -99,7 +122,8 @@ object KtorHttpClient {
     suspend fun checkServerHealth(client: HttpClient): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                val response = client.get("${BASE_URL}api/v1/health")
+                val baseUrl = BASE_URL.removeSuffix("/")
+                val response: HttpResponse = client.get("$baseUrl/api/v1/health")
                 val text = response.bodyAsText()
                 println("[OkHttp] Server Health Check Success: $text")
                 true

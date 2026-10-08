@@ -70,14 +70,14 @@ class MainActivity : ComponentActivity() {
         // Initialize Ktor HTTP & WebSockets Network Repositories
         val tokenManager = TokenManager(applicationContext)
         val ktorClient = KtorHttpClient.createClient(tokenManager)
+        val webSocketClient = MapWebSocketClient(ktorClient)
 
         val ktorAuthRepository = KtorAuthRepositoryImpl(ktorClient, tokenManager)
-        val ktorEventsRepository = KtorEventsRepositoryImpl(ktorClient)
+        val ktorEventsRepository = KtorEventsRepositoryImpl(ktorClient, webSocketClient)
         val ktorNotificationsRepository = KtorNotificationsRepositoryImpl(ktorClient)
         val ktorFriendRequestService = KtorFriendRequestServiceImpl(ktorClient)
 
         // Connect real-time WebSocket client
-        val webSocketClient = MapWebSocketClient(ktorClient)
         webSocketClient.connect()
 
         // Perform server health check on app startup in background Dispatchers.IO context

@@ -1,5 +1,6 @@
 package com.example.projectsigma.data.remote.dto
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -22,7 +23,15 @@ data class GoogleAuthRequest(
 
 @Serializable
 data class TokenResponse(
-    val accessToken: String,
-    val refreshToken: String,
+    val accessToken: String? = null,
+    @SerialName("access_token") val accessTokenSnake: String? = null,
+    val refreshToken: String? = null,
+    @SerialName("refresh_token") val refreshTokenSnake: String? = null,
     val tokenType: String = "Bearer"
-)
+) {
+    val validAccessToken: String
+        get() = accessToken ?: accessTokenSnake ?: ""
+
+    val validRefreshToken: String
+        get() = refreshToken ?: refreshTokenSnake ?: validAccessToken
+}

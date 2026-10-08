@@ -14,8 +14,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class KtorNotificationsRepositoryImpl(
-    private val client: HttpClient
+    private val client: HttpClient,
+    private val tokenManager: TokenManager? = null
 ) : NotificationsRepository {
+
+    private val baseUrl: String
+        get() = KtorHttpClient.BASE_URL.removeSuffix("/")
 
     private val _notifications = MutableStateFlow<List<NotificationItem>>(emptyList())
     override val notifications: StateFlow<List<NotificationItem>> = _notifications.asStateFlow()
@@ -45,13 +49,18 @@ class KtorNotificationsRepositoryImpl(
     }
 
     suspend fun fetchNotifications(): Result<List<NotificationItem>> {
+        val token = tokenManager?.getAccessToken()
+        if (token.isNullOrBlank()) {
+            return Result.failure(Exception("No access token. Skipping protected notifications request."))
+        }
         return try {
-            val response: ApiResponse<List<NotificationDto>> = client.get("${KtorHttpClient.BASE_URL}/api/v1/notifications").body()
+            val response: ApiResponse<List<NotificationDto>> = client.get("$baseUrl/api/v1/notifications").body()
             val dtoList = response.data ?: emptyList()
             val models = dtoList.map { it.toModel() }
             _notifications.value = models
             Result.success(models)
         } catch (e: Exception) {
+            println("[NetworkError] Failed to fetch notifications from Ktor: ${e.message}")
             Result.failure(e)
         }
     }
