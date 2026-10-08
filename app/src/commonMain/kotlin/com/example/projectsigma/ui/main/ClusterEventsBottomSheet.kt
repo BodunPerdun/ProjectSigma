@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.model.EventCluster
+import com.example.projectsigma.model.formattedDateTime
 import com.example.projectsigma.ui.components.AsyncEventImage
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -123,7 +124,7 @@ fun ClusterEventsBottomSheet(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "📅 ${event.dateTime}",
+                                    text = "📅 ${event.formattedDateTime}",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.SemiBold

@@ -49,6 +49,7 @@ import com.example.projectsigma.data.FriendRequestService
 import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.User
+import com.example.projectsigma.model.formattedDateTime
 import com.example.projectsigma.model.localizedDescription
 import com.example.projectsigma.model.localizedLabel
 import com.example.projectsigma.model.localizedTitle
@@ -148,9 +149,9 @@ fun EventDetailsBottomSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Date & Time
+            // Formatted Date & Time
             Text(
-                text = "📅 ${event.dateTime}",
+                text = "📅 ${event.formattedDateTime}",
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.secondary
@@ -472,7 +473,7 @@ fun EventDetailsBottomSheet(
         }
     }
 
-    // Modal Sheet 2: Single Participant / Organizer Profile Card (with Bio, Add Friend Request Button, & Social Links)
+    // Modal Sheet 2: Single Participant / Organizer Profile Card
     selectedParticipantProfile?.let { participant ->
         val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val isAlreadyFriend = currentUser?.friends?.contains(participant.id) == true
@@ -530,7 +531,7 @@ fun EventDetailsBottomSheet(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Social Media Deep Link Chips (Privacy-Aware: Checks participant.isSocialsPublic)
+                // Social Media Deep Link Chips
                 if (participant.isSocialsPublic) {
                     val hasSocials = !participant.instagramHandle.isNullOrBlank() || !participant.telegramHandle.isNullOrBlank()
                     if (hasSocials) {
