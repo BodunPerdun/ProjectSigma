@@ -7,7 +7,7 @@ interface AuthRepository {
     val currentUser: StateFlow<User?>
     suspend fun loginWithEmail(email: String, pass: String): Result<User>
     suspend fun registerWithEmail(email: String, pass: String, name: String): Result<User>
-    suspend fun signInWithGoogle(): Result<User>
+    suspend fun signInWithGoogle(email: String? = null, displayName: String? = null, photoUrl: String? = null): Result<User>
     fun logout()
     fun updateUserEventCount(count: Int)
     fun updateLocationVisibility(isVisible: Boolean)

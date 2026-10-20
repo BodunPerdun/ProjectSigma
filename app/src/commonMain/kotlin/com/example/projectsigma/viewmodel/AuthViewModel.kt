@@ -60,12 +60,12 @@ class AuthViewModel(val authRepository: AuthRepository) {
         }
     }
 
-    fun signInWithGoogle() {
+    fun signInWithGoogle(email: String? = null, displayName: String? = null, photoUrl: String? = null) {
         _errorMessage.value = null
         _isLoading.value = true
 
         scope.launch {
-            val result = authRepository.signInWithGoogle()
+            val result = authRepository.signInWithGoogle(email, displayName, photoUrl)
             _isLoading.value = false
             result.onFailure {
                 _errorMessage.value = it.message ?: "Google Sign-In failed."
@@ -111,7 +111,7 @@ class AuthViewModel(val authRepository: AuthRepository) {
 
     fun getFriendUsers(allKnownUsers: List<User> = emptyList()): List<User> {
         val friendIds = currentUser.value?.friends ?: emptyList()
-        val nearbyUsers = authRepository.getDiscoverableNearbyUsers().map { it.first }
+        val nearbyUsers = authRepository.getDiscoverableNearbyUsers().map { (user, _) -> user }
         val combinedUsers = (nearbyUsers + allKnownUsers).distinctBy { it.id }
 
         return friendIds.map { fId ->
@@ -119,7 +119,7 @@ class AuthViewModel(val authRepository: AuthRepository) {
                 id = fId,
                 email = "",
                 displayName = if (fId.startsWith("usr_near_")) "Nearby Friend" else "Friend",
-                isSocialsPublic = true
+                isSocialsPublic = true,
             )
         }
     }

@@ -1,6 +1,5 @@
 package com.example.projectsigma.ui.main
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +22,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -52,20 +52,8 @@ import com.example.projectsigma.ui.components.AsyncEventImage
 import com.example.projectsigma.ui.components.GalleryImagePickerButton
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
-import kotlin.math.round
-import kotlin.time.Duration.Companion.minutes
-
-private fun round4(value: Double): Double = round(value * 10000.0) / 10000.0
-
-private fun formatTime(hour: Int, minute: Int): String {
-    val h = hour.toString().padStart(2, '0')
-    val m = minute.toString().padStart(2, '0')
-    return "$h:$m"
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,61 +64,29 @@ fun CreateEventBottomSheet(
     onCreateEvent: (title: String, description: String, category: EventCategory, dateTime: String, photoUrl: String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Set skipPartiallyExpanded = false so the sheet opens at half-screen height over the map
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val haptic = LocalHapticFeedback.current
 
     val currentLanguage by AppLanguageManager.currentLanguage.collectAsState()
     val s = AppLanguageManager.strings
 
-    // Dynamically calculate current device moment defaults
-    val nowLdt = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
-    val defaultDay = nowLdt.dayOfMonth.toString().padStart(2, '0')
-    val defaultMonth = nowLdt.monthNumber.toString().padStart(2, '0')
-    val defaultYear = nowLdt.year
-    val defaultDateString = "$defaultDay.$defaultMonth.$defaultYear"
-
-    val defaultStartHour = nowLdt.hour
-    val defaultStartMinute = nowLdt.minute
-    val defaultEndHour = (nowLdt.hour + 1) % 24
-    val defaultEndMinute = nowLdt.minute
-
-    var title by remember { mutableStateOf(eventToEdit?.title ?: "") }
-    var description by remember { mutableStateOf(eventToEdit?.description ?: "") }
-    var selectedCategory by remember { mutableStateOf(eventToEdit?.category ?: EventCategory.MEETUP) }
-    var photoUrl by remember { mutableStateOf<String?>(eventToEdit?.photoUrl) }
+    // Pre-fill fields if editing existing event pin
+    var title by remember(eventToEdit) { mutableStateOf(eventToEdit?.title ?: "") }
+    var description by remember(eventToEdit) { mutableStateOf(eventToEdit?.description ?: "") }
+    var selectedCategory by remember(eventToEdit) { mutableStateOf(eventToEdit?.category ?: EventCategory.MEETUP) }
+    var photoUrl by remember(eventToEdit) { mutableStateOf<String?>(eventToEdit?.photoUrl) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Separated Date and Hour States with Dynamic Current Device Time Defaults
-    var selectedDateText by remember { mutableStateOf(defaultDateString) }
-    var startHour by remember { mutableStateOf(defaultStartHour) }
-    var startMinute by remember { mutableStateOf(defaultStartMinute) }
-    var endHour by remember { mutableStateOf(defaultEndHour) }
-    var endMinute by remember { mutableStateOf(defaultEndMinute) }
+    val nowLocal = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
+    val initialDateStr = "${nowLocal.dayOfMonth.toString().padStart(2, '0')}.${nowLocal.monthNumber.toString().padStart(2, '0')}.${nowLocal.year}"
 
-    // Parse initial dateTime if editing an existing event
-    remember(eventToEdit) {
-        if (eventToEdit != null && eventToEdit.dateTime.contains(" ")) {
-            val parts = eventToEdit.dateTime.split(" ")
-            if (parts.isNotEmpty()) {
-                selectedDateText = parts[0]
-            }
-            val timePart = eventToEdit.dateTime.substringAfter(selectedDateText).trim()
-            if (timePart.contains("-")) {
-                val times = timePart.split("-")
-                val start = times[0].trim()
-                val end = times[1].trim()
-                val startH = start.substringBefore(":").toIntOrNull()
-                val startM = start.substringAfter(":").toIntOrNull()
-                val endH = end.substringBefore(":").toIntOrNull()
-                val endM = end.substringAfter(":").toIntOrNull()
+    var selectedDateText by remember(eventToEdit) { mutableStateOf(initialDateStr) }
 
-                if (startH != null) startHour = startH
-                if (startM != null) startMinute = startM
-                if (endH != null) endHour = endH
-                if (endM != null) endMinute = endM
-            }
-        }
-    }
+    var startHour by remember(eventToEdit) { mutableStateOf(nowLocal.hour) }
+    var startMinute by remember(eventToEdit) { mutableStateOf((nowLocal.minute / 15) * 15) }
+    var endHour by remember(eventToEdit) { mutableStateOf((nowLocal.hour + 2) % 24) }
+    var endMinute by remember(eventToEdit) { mutableStateOf((nowLocal.minute / 15) * 15) }
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showStartTimePicker by remember { mutableStateOf(false) }
@@ -142,36 +98,16 @@ fun CreateEventBottomSheet(
 
     val isEditing = eventToEdit != null
 
-    // Validation 1: Hours Interval Order (Start < End)
-    val startTotalMinutes = startHour * 60 + startMinute
-    val endTotalMinutes = endHour * 60 + endMinute
-    val isTimeIntervalValid = endTotalMinutes > startTotalMinutes
+    // Validation: Event duration must not be 0 minutes
+    val isTimeIntervalValid = startHour != endHour || startMinute != endMinute
+    val isCrossesMidnight = (endHour * 60 + endMinute) <= (startHour * 60 + startMinute)
 
-    // Validation 2: Past Time Prevention (Start time cannot be in the past)
-    val isStartInPast = remember(selectedDateText, startHour, startMinute) {
-        try {
-            val dateParts = selectedDateText.split(".")
-            if (dateParts.size >= 3) {
-                val day = dateParts[0].toInt()
-                val month = dateParts[1].toInt()
-                val year = dateParts[2].toInt()
-                val selectedLdt = LocalDateTime(year, month, day, startHour, startMinute)
-                val selectedInstant = selectedLdt.toInstant(TimeZone.currentSystemDefault())
-                val nowInstant = Clock.System.now()
-                // Allow 2 minute grace buffer for real-time form filling
-                selectedInstant < (nowInstant - 2.minutes)
-            } else false
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    val isFormValid = isTimeIntervalValid && !isStartInPast && title.isNotBlank()
+    val isFormValid = isTimeIntervalValid && title.isNotBlank()
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
         modifier = modifier
     ) {
         Column(
@@ -183,12 +119,8 @@ fun CreateEventBottomSheet(
         ) {
             Text(
                 text = if (isEditing) s.editEventTitle else s.createEventTitle,
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-            )
-
-            Text(
-                text = "Lat: ${round4(location.first)}, Lng: ${round4(location.second)}",
-                style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray)
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -210,7 +142,7 @@ fun CreateEventBottomSheet(
                 text = s.selectCategoryLabel,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.DarkGray
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -222,12 +154,13 @@ fun CreateEventBottomSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 EventCategory.entries.forEach { cat ->
-                    val selected = cat == selectedCategory
                     FilterChip(
-                        selected = selected,
+                        selected = selectedCategory == cat,
                         onClick = { selectedCategory = cat },
                         label = { Text("${cat.iconName} ${cat.localizedLabel}") },
                         colors = FilterChipDefaults.filterChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            labelColor = MaterialTheme.colorScheme.onSurface,
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.primary
                         )
@@ -237,161 +170,98 @@ fun CreateEventBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // SEPARATED FIELD 1: Date Field
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = s.eventDateLabel,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.DarkGray
-                )
+            // Date Picker Card
+            Text(
+                text = s.eventDateLabel,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
 
-                if (isStartInPast) {
-                    TextButton(onClick = {
-                        val currentLdt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-                        val d = currentLdt.dayOfMonth.toString().padStart(2, '0')
-                        val m = currentLdt.monthNumber.toString().padStart(2, '0')
-                        val y = currentLdt.year
-                        selectedDateText = "$d.$m.$y"
-                        startHour = currentLdt.hour
-                        startMinute = currentLdt.minute
-                        endHour = (currentLdt.hour + 1) % 24
-                        endMinute = currentLdt.minute
-                    }) {
-                        Text(s.resetToNowBtn, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Surface(
+                onClick = { showDatePicker = true },
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "📅 $selectedDateText",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text("Change", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showDatePicker = true }
-            ) {
-                OutlinedTextField(
-                    value = selectedDateText,
-                    onValueChange = {},
-                    label = { Text("${s.eventDateLabel} (DD.MM.YYYY) *") },
-                    singleLine = true,
-                    readOnly = true,
-                    enabled = false,
-                    isError = isStartInPast,
-                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        disabledTextColor = Color.Unspecified,
-                        disabledBorderColor = if (isStartInPast) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    trailingIcon = {
-                        Text("📅", fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
-                    }
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // SEPARATED FIELD 2 & 3: Hours Interval Fields
+            // Start / End Hours Selection Cards
             Text(
                 text = s.timeIntervalLabel,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.DarkGray
+                color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(4.dp))
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Start Hour Field Box
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { showStartTimePicker = true }
+                Surface(
+                    onClick = { showStartTimePicker = true },
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    OutlinedTextField(
-                        value = formatTime(startHour, startMinute),
-                        onValueChange = {},
-                        label = { Text(s.startHourLabel) },
-                        singleLine = true,
-                        readOnly = true,
-                        enabled = false,
-                        isError = isStartInPast,
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Unspecified,
-                            disabledBorderColor = if (isStartInPast) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
-                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        trailingIcon = {
-                            Text("⏰", fontSize = 14.sp)
-                        }
-                    )
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(s.startHourLabel, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = formatTime(startHour, startMinute),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
 
-                // End Hour Field Box
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { showEndTimePicker = true }
+                Surface(
+                    onClick = { showEndTimePicker = true },
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    OutlinedTextField(
-                        value = formatTime(endHour, endMinute),
-                        onValueChange = {},
-                        label = { Text(s.endHourLabel) },
-                        singleLine = true,
-                        readOnly = true,
-                        enabled = false,
-                        isError = !isTimeIntervalValid,
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = Color.Unspecified,
-                            disabledBorderColor = if (!isTimeIntervalValid) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
-                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        trailingIcon = {
-                            Text("⌛", fontSize = 14.sp)
-                        }
-                    )
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(s.endHourLabel, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isCrossesMidnight) "${formatTime(endHour, endMinute)} (+1d)" else formatTime(endHour, endMinute),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
-            }
-
-            // Inline Validation Warnings
-            if (isStartInPast) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = s.pastTimeWarning,
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            } else if (!isTimeIntervalValid) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = s.intervalOrderWarning,
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Photo Attachment Section
+            // Gallery Image Attachment Picker
             Text(
                 text = s.attachPhotoLabel,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.DarkGray
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -456,13 +326,15 @@ fun CreateEventBottomSheet(
                 onClick = {
                     if (title.isBlank()) {
                         errorMessage = "Event title is required."
-                    } else if (isStartInPast) {
-                        errorMessage = s.pastTimeWarning
                     } else if (!isTimeIntervalValid) {
                         errorMessage = s.intervalOrderWarning
                     } else {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val formattedDateTime = "$selectedDateText ${formatTime(startHour, startMinute)} - ${formatTime(endHour, endMinute)}"
+                        val formattedDateTime = if (isCrossesMidnight) {
+                            "$selectedDateText ${formatTime(startHour, startMinute)} - ${formatTime(endHour, endMinute)} (+1d)"
+                        } else {
+                            "$selectedDateText ${formatTime(startHour, startMinute)} - ${formatTime(endHour, endMinute)}"
+                        }
                         onCreateEvent(title, description, selectedCategory, formattedDateTime, photoUrl)
                         onDismissRequest()
                     }
@@ -520,14 +392,6 @@ fun CreateEventBottomSheet(
                 TextButton(onClick = {
                     startHour = startTimePickerState.hour
                     startMinute = startTimePickerState.minute
-
-                    // Auto-adjust end hour if start hour exceeds or equals end hour
-                    val newStartTotal = startHour * 60 + startMinute
-                    if (newStartTotal >= endTotalMinutes) {
-                        endHour = (startHour + 1).coerceAtMost(23)
-                        endMinute = startMinute
-                    }
-
                     showStartTimePicker = false
                 }) {
                     Text(s.done)
@@ -539,13 +403,7 @@ fun CreateEventBottomSheet(
                 }
             }
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(s.startHourLabel, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
-                TimePicker(state = startTimePickerState)
-            }
+            TimePicker(state = startTimePickerState)
         }
     }
 
@@ -568,13 +426,13 @@ fun CreateEventBottomSheet(
                 }
             }
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(s.endHourLabel, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
-                TimePicker(state = endTimePickerState)
-            }
+            TimePicker(state = endTimePickerState)
         }
     }
+}
+
+private fun formatTime(hour: Int, minute: Int): String {
+    val h = hour.toString().padStart(2, '0')
+    val m = minute.toString().padStart(2, '0')
+    return "$h:$m"
 }

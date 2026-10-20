@@ -5,14 +5,15 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color as AndroidColor
+import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
-import android.graphics.Typeface
+import android.graphics.Rect
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -30,20 +31,18 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.EventCluster
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.example.projectsigma.theme.AppThemeManager
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.location.LocationComponentActivationOptions
-import org.maplibre.android.location.LocationComponentOptions
 import org.maplibre.android.location.modes.CameraMode
 import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
-import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
@@ -51,7 +50,6 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
 
-private const val PRIMARY_COMMERCIAL_STYLE_URL = "https://tiles.openfreemap.org/styles/positron"
 private const val EVENTS_SOURCE_ID = "events-geojson-source"
 private const val EVENTS_LAYER_ID = "events-symbol-layer"
 
@@ -59,6 +57,7 @@ private const val EVENTS_LAYER_ID = "events-symbol-layer"
 actual fun MapLibreMapContainer(
     clusters: List<EventCluster>,
     selectedEvent: Event?,
+    newPinLocation: Pair<Double, Double>?,
     onMarkerClick: (eventId: String) -> Unit,
     onClusterClick: (cluster: EventCluster) -> Unit,
     onMapClick: (latitude: Double, longitude: Double) -> Unit,
@@ -76,13 +75,31 @@ actual fun MapLibreMapContainer(
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var isStyleLoaded by remember { mutableStateOf(false) }
 
-    // Always keep freshest references to state flows & callbacks inside permanent listener
+    val activeStyleUrl = AppThemeManager.mapStyleUrl
+
     val currentClusters by rememberUpdatedState(clusters)
     val currentOnMarkerClick by rememberUpdatedState(onMarkerClick)
     val currentOnClusterClick by rememberUpdatedState(onClusterClick)
     val currentOnMapClick by rememberUpdatedState(onMapClick)
 
-    // ActivityResultLauncher for Google Play compliant GPS runtime permissions
+    // Physics-based spring bounce animation for new draft pin entrance
+    val draftPinScale = remember { Animatable(0f) }
+
+    LaunchedEffect(newPinLocation) {
+        if (newPinLocation != null) {
+            draftPinScale.snapTo(0.2f)
+            draftPinScale.animateTo(
+                targetValue = 1.0f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            )
+        } else {
+            draftPinScale.snapTo(0f)
+        }
+    }
+
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -98,138 +115,52 @@ actual fun MapLibreMapContainer(
 
     val mapView = remember {
         MapView(context).apply {
-            layoutParams = android.view.ViewGroup.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT
-            )
-
-            addOnDidFailLoadingMapListener { errorMessage ->
-                Log.e("MapLibreMapContainer", "Map failed loading: $errorMessage")
-            }
-
             getMapAsync { map ->
                 mapLibreMap = map
 
-                // Disable compass widget
-                map.uiSettings.isCompassEnabled = false
-
-                map.setStyle(PRIMARY_COMMERCIAL_STYLE_URL) { style ->
-                    Log.d("MapLibreMapContainer", "MapLibre style loaded successfully!")
-
-                    // 1. Create and add empty GeoJsonSource
-                    val geoJsonSource = GeoJsonSource(EVENTS_SOURCE_ID, FeatureCollection.fromFeatures(emptyArray()))
-                    style.addSource(geoJsonSource)
-
-                    // 2. Create and add SymbolLayer
-                    val symbolLayer = SymbolLayer(EVENTS_LAYER_ID, EVENTS_SOURCE_ID).apply {
-                        setProperties(
-                            PropertyFactory.iconImage(Expression.get("icon_image_id")),
-                            PropertyFactory.iconAllowOverlap(true),
-                            PropertyFactory.iconIgnorePlacement(true),
-                            PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
-                        )
-                    }
-                    style.addLayer(symbolLayer)
-
-                    isStyleLoaded = true
-
-                    // Try enabling GPS location component if permissions already granted
-                    enableLocationComponent(context, map)
-
-                    // Filter out commercial POI clutter while preserving house numbers & street address labels
-                    style.layers.forEach { layer ->
-                        val layerId = layer.id.lowercase()
-                        val isAddressOrBuilding = layerId.contains("house") ||
-                                layerId.contains("number") ||
-                                layerId.contains("addr") ||
-                                layerId.contains("building") ||
-                                layerId.contains("street")
-
-                        if (!isAddressOrBuilding && (
-                                layerId.contains("poi") ||
-                                layerId.contains("store") ||
-                                layerId.contains("restaurant") ||
-                                layerId.contains("shop") ||
-                                layerId.contains("amenity") ||
-                                layerId.contains("bank") ||
-                                layerId.contains("cafe") ||
-                                layerId.contains("bar")
-                            )
-                        ) {
-                            layer.setProperties(PropertyFactory.visibility(Property.NONE))
-                        }
-                    }
-                }
-
-                // Initial camera setup
+                // Initial camera target: London (51.5074, -0.1278)
                 map.cameraPosition = CameraPosition.Builder()
                     .target(LatLng(51.5074, -0.1278))
-                    .zoom(15.0)
-                    .tilt(15.0)
+                    .zoom(12.5)
                     .build()
 
-                // Listen to camera zoom idle changes to dynamically re-cluster / un-cluster and scale pins
-                map.addOnCameraIdleListener {
-                    val currentZoomInt = map.cameraPosition.zoom.toInt()
-                    onZoomChanged(currentZoomInt)
-                }
+                map.setStyle(activeStyleUrl) { style ->
+                    Log.d("MapLibre", "Map style loaded successfully: $activeStyleUrl")
+                    isStyleLoaded = true
+                    initGeoJsonLayers(style)
+                    enableLocationComponent(context, map)
 
-                // Robust single map click listener with queryRenderedFeatures specifically on EVENTS_LAYER_ID
-                map.addOnMapClickListener { point ->
-                    val screenPoint = map.projection.toScreenLocation(point)
-                    val touchRect = RectF(
-                        screenPoint.x - 36f,
-                        screenPoint.y - 36f,
-                        screenPoint.x + 36f,
-                        screenPoint.y + 36f
-                    )
-
-                    val hitFeatures = map.queryRenderedFeatures(touchRect, EVENTS_LAYER_ID)
-
-                    if (hitFeatures.isNotEmpty()) {
-                        val feature = hitFeatures.first()
-                        val type = feature.getStringProperty("type") ?: ""
-                        val id = feature.getStringProperty("id") ?: ""
-
-                        Log.d("MapLibreMapContainer", "Hit feature '$type' on $EVENTS_LAYER_ID with ID: $id")
-
-                        if (type == "cluster") {
-                            val clusterMatch = currentClusters.find { it.id == id }
-                            if (clusterMatch != null) {
-                                currentOnClusterClick(clusterMatch)
-                            }
-                        } else if (type == "single") {
-                            currentOnMarkerClick(id)
-                        }
-                        return@addOnMapClickListener true
+                    map.addOnCameraMoveListener {
+                        val zoomInt = map.cameraPosition.zoom.toInt()
+                        onZoomChanged(zoomInt)
                     }
 
-                    Log.d("MapLibreMapContainer", "Empty map space tapped at Lat: ${point.latitude}, Lng: ${point.longitude}")
-                    currentOnMapClick(point.latitude, point.longitude)
-                    true
+                    map.addOnMapClickListener { latLng ->
+                        val screenPoint = map.projection.toScreenLocation(latLng)
+                        val features = map.queryRenderedFeatures(screenPoint, EVENTS_LAYER_ID)
+
+                        if (features.isNotEmpty()) {
+                            val clickedFeature = features.first()
+                            val eventId = clickedFeature.getStringProperty("id") ?: ""
+                            val featureType = clickedFeature.getStringProperty("type") ?: ""
+
+                            if (eventId.isNotBlank()) {
+                                if (featureType == "cluster") {
+                                    val matchedCluster = currentClusters.find { it.id == eventId }
+                                    if (matchedCluster != null) {
+                                        currentOnClusterClick(matchedCluster)
+                                    }
+                                } else {
+                                    currentOnMarkerClick(eventId)
+                                }
+                                return@addOnMapClickListener true
+                            }
+                        }
+
+                        currentOnMapClick(latLng.latitude, latLng.longitude)
+                        true
+                    }
                 }
-            }
-        }
-    }
-
-    // Prompt location permissions on style load
-    LaunchedEffect(isStyleLoaded) {
-        if (isStyleLoaded) {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
-    }
-
-    // Smoothly animate camera to current GPS location whenever MyLocation button is tapped
-    LaunchedEffect(myLocationTrigger) {
-        if (myLocationTrigger > 0) {
-            val map = mapLibreMap
-            if (map != null) {
-                animateCameraToMyLocation(context, map)
             }
         }
     }
@@ -251,30 +182,68 @@ actual fun MapLibreMapContainer(
         }
     }
 
-    // Dynamic GeoJSON source feature updates on Main thread after style is fully loaded
-    LaunchedEffect(isStyleLoaded, clusters, selectedEvent) {
-        if (!isStyleLoaded) return@LaunchedEffect
-        val map = mapLibreMap ?: return@LaunchedEffect
+    LaunchedEffect(myLocationTrigger) {
+        if (myLocationTrigger > 0) {
+            val map = mapLibreMap
+            if (map != null) {
+                val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-        withContext(Dispatchers.Main) {
-            updateGeoJsonFeatures(
-                context = context,
-                map = map,
-                clusters = clusters,
-                selectedEvent = selectedEvent
+                if (hasFine || hasCoarse) {
+                    val locationComp = map.locationComponent
+                    if (locationComp.isLocationComponentActivated && locationComp.lastKnownLocation != null) {
+                        val loc = locationComp.lastKnownLocation!!
+                        map.animateCamera(
+                            CameraUpdateFactory.newCameraPosition(
+                                CameraPosition.Builder()
+                                    .target(LatLng(loc.latitude, loc.longitude))
+                                    .zoom(15.0)
+                                    .build()
+                            ),
+                            1200
+                        )
+                    }
+                } else {
+                    locationPermissionLauncher.launch(
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(selectedEvent) {
+        val map = mapLibreMap
+        if (map != null && selectedEvent != null) {
+            map.animateCamera(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder()
+                        .target(LatLng(selectedEvent.latitude, selectedEvent.longitude))
+                        .zoom(15.0)
+                        .build()
+                ),
+                1000
             )
+        }
+    }
 
-            // Smooth Camera Fly-To on event selection / creation
-            selectedEvent?.let { event ->
-                Log.d("MapLibreMapContainer", "Camera easing to created/selected event at Lat: ${event.latitude}, Lng: ${event.longitude}")
-                map.easeCamera(
-                    CameraUpdateFactory.newCameraPosition(
-                        CameraPosition.Builder()
-                            .target(LatLng(event.latitude, event.longitude))
-                            .zoom(15.5)
-                            .build()
-                    ),
-                    1000
+    LaunchedEffect(clusters, selectedEvent, newPinLocation, draftPinScale.value, isStyleLoaded) {
+        val map = mapLibreMap
+        if (map != null && isStyleLoaded) {
+            val style = map.style
+            if (style != null && style.isFullyLoaded) {
+                val zoomScale = calculateZoomScale(map.cameraPosition.zoom)
+                updateMapLayers(
+                    context = context,
+                    style = style,
+                    clusters = clusters,
+                    selectedEvent = selectedEvent,
+                    newPinLocation = newPinLocation,
+                    draftPinScale = draftPinScale.value,
+                    zoomScale = zoomScale
                 )
             }
         }
@@ -282,101 +251,78 @@ actual fun MapLibreMapContainer(
 
     AndroidView(
         factory = { mapView },
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
     )
 }
 
-fun animateCameraToMyLocation(context: Context, map: MapLibreMap) {
-    try {
-        val locationComponent = map.locationComponent
-        if (locationComponent.isLocationComponentActivated && locationComponent.isLocationComponentEnabled) {
-            val lastLoc = locationComponent.lastKnownLocation
-            val targetLatLng = if (lastLoc != null) LatLng(lastLoc.latitude, lastLoc.longitude) else LatLng(51.5074, -0.1278)
-            map.animateCamera(
-                CameraUpdateFactory.newCameraPosition(
-                    CameraPosition.Builder()
-                        .target(targetLatLng)
-                        .zoom(16.0)
-                        .tilt(15.0)
-                        .build()
-                ),
-                1200
-            )
-        } else {
-            enableLocationComponent(context, map)
-        }
-    } catch (e: Exception) {
-        Log.e("MapLibreMapContainer", "Error moving camera to my location: ${e.message}")
+private fun calculateZoomScale(zoomLevel: Double): Float {
+    return when {
+        zoomLevel >= 15.0 -> 1.25f
+        zoomLevel >= 13.0 -> 1.0f
+        zoomLevel >= 10.0 -> 0.85f
+        else -> 0.7f
     }
 }
 
-private fun enableLocationComponent(
-    context: Context,
-    map: MapLibreMap
-) {
-    val fineGranted = ContextCompat.checkSelfPermission(
-        context,
-        Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
+private fun initGeoJsonLayers(style: Style) {
+    if (style.getSource(EVENTS_SOURCE_ID) == null) {
+        val geoJsonSource = GeoJsonSource(EVENTS_SOURCE_ID)
+        style.addSource(geoJsonSource)
 
-    val coarseGranted = ContextCompat.checkSelfPermission(
-        context,
-        Manifest.permission.ACCESS_COARSE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
+        val symbolLayer = SymbolLayer(EVENTS_LAYER_ID, EVENTS_SOURCE_ID).apply {
+            withProperties(
+                PropertyFactory.iconImage(Expression.get("icon_image_id")),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true)
+            )
+        }
+        style.addLayer(symbolLayer)
+    }
+}
 
-    if (fineGranted || coarseGranted) {
+private fun enableLocationComponent(context: Context, map: MapLibreMap) {
+    val style = map.style ?: return
+    val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    if (hasFine || hasCoarse) {
         try {
-            val style = map.style ?: return
             val locationComponent = map.locationComponent
-
-            // High-Performance walking location options with snappy 200ms animation multiplier & 60fps tracking
-            val locationComponentOptions = LocationComponentOptions.builder(context)
-                .pulseEnabled(true)
-                .pulseFadeEnabled(true)
-                .trackingAnimationDurationMultiplier(0.2f)
-                .compassAnimationEnabled(true)
-                .accuracyAnimationEnabled(true)
-                .accuracyAlpha(0.25f)
-                .build()
-
-            val activationOptions = LocationComponentActivationOptions.builder(context, style)
-                .locationComponentOptions(locationComponentOptions)
-                .build()
-
-            locationComponent.activateLocationComponent(activationOptions)
+            val options = LocationComponentActivationOptions.builder(context, style).build()
+            locationComponent.activateLocationComponent(options)
             locationComponent.isLocationComponentEnabled = true
-            locationComponent.cameraMode = CameraMode.TRACKING
+            locationComponent.cameraMode = CameraMode.NONE
             locationComponent.renderMode = RenderMode.COMPASS
 
+            // Instantly animate camera to user GPS position upon launch
             val lastLoc = locationComponent.lastKnownLocation
             if (lastLoc != null) {
                 map.animateCamera(
-                    CameraUpdateFactory.newLatLngZoom(
-                        LatLng(lastLoc.latitude, lastLoc.longitude),
-                        15.5
+                    CameraUpdateFactory.newCameraPosition(
+                        CameraPosition.Builder()
+                            .target(LatLng(lastLoc.latitude, lastLoc.longitude))
+                            .zoom(14.5)
+                            .build()
                     ),
-                    1200
+                    1000
                 )
             }
         } catch (e: Exception) {
-            Log.e("MapLibreMapContainer", "Error enabling location component: ${e.message}")
+            println("[MapLibre] Error activating location component: ${e.message}")
         }
     }
 }
 
-private fun updateGeoJsonFeatures(
+private fun updateMapLayers(
     context: Context,
-    map: MapLibreMap,
+    style: Style,
     clusters: List<EventCluster>,
-    selectedEvent: Event?
+    selectedEvent: Event?,
+    newPinLocation: Pair<Double, Double>?,
+    draftPinScale: Float,
+    zoomScale: Float
 ) {
-    val style = map.style ?: return
     val source = style.getSourceAs<GeoJsonSource>(EVENTS_SOURCE_ID) ?: return
-
-    val currentZoomLevel = map.cameraPosition.zoom
-    // Scale factor: when user zooms in close (zoom 16-18), enlarge pins!
-    val iconScale = (currentZoomLevel / 14.0).toFloat().coerceIn(0.7f, 1.8f)
-
     val features = mutableListOf<Feature>()
 
     for (cluster in clusters) {
@@ -390,10 +336,10 @@ private fun updateGeoJsonFeatures(
                 hexColor = event.category.colorHex,
                 isCluster = false,
                 isSelected = isSelected,
-                zoomScale = iconScale
+                zoomScale = zoomScale
             )
 
-            val imageId = "img_evt_${event.id}_${isSelected}_${(iconScale * 10).toInt()}"
+            val imageId = "img_evt_${event.id}_${isSelected}_${(zoomScale * 10).toInt()}"
             style.addImage(imageId, rawBitmap)
 
             val feature = Feature.fromGeometry(
@@ -414,10 +360,10 @@ private fun updateGeoJsonFeatures(
                 hexColor = "#3F51B5",
                 isCluster = true,
                 isSelected = isSelected,
-                zoomScale = iconScale
+                zoomScale = zoomScale
             )
 
-            val imageId = "img_cls_${cluster.id}_${isSelected}_${(iconScale * 10).toInt()}"
+            val imageId = "img_cls_${cluster.id}_${isSelected}_${(zoomScale * 10).toInt()}"
             style.addImage(imageId, rawBitmap)
 
             val feature = Feature.fromGeometry(
@@ -430,6 +376,33 @@ private fun updateGeoJsonFeatures(
 
             features.add(feature)
         }
+    }
+
+    // Physical Draft Pin Rendering on Map Canvas with Spring Bounce Scale Animation
+    if (newPinLocation != null) {
+        val animatedZoomScale = zoomScale * 1.35f * draftPinScale.coerceAtLeast(0.1f)
+
+        val draftBitmap = createRawBitmapIcon(
+            context = context,
+            text = "📍",
+            hexColor = "#FF3D00",
+            isCluster = false,
+            isSelected = true,
+            zoomScale = animatedZoomScale
+        )
+
+        val draftImageId = "img_draft_pin_${(animatedZoomScale * 100).toInt()}"
+        style.addImage(draftImageId, draftBitmap)
+
+        val draftFeature = Feature.fromGeometry(
+            Point.fromLngLat(newPinLocation.second, newPinLocation.first)
+        ).apply {
+            addStringProperty("id", "draft_new_event_pin")
+            addStringProperty("type", "draft")
+            addStringProperty("icon_image_id", draftImageId)
+        }
+
+        features.add(draftFeature)
     }
 
     source.setGeoJson(FeatureCollection.fromFeatures(features))
@@ -449,42 +422,50 @@ private fun createRawBitmapIcon(
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
 
-    val colorInt = try {
-        AndroidColor.parseColor(hexColor)
+    val parsedColor = try {
+        Color.parseColor(hexColor)
     } catch (e: Exception) {
-        AndroidColor.parseColor("#3F51B5")
+        Color.parseColor("#1976D2")
     }
 
-    // Shadow
-    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.argb(70, 0, 0, 0)
-    }
-    canvas.drawCircle(size / 2f, size / 2f + (4f * zoomScale), size / 2f - (4f * zoomScale), shadowPaint)
-
-    // Base circle
-    val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = colorInt
+    val paintCircle = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = parsedColor
         style = Paint.Style.FILL
     }
-    canvas.drawCircle(size / 2f, size / 2f, size / 2f - (6f * zoomScale), bgPaint)
 
-    // Border
-    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = if (isSelected) AndroidColor.parseColor("#FFD700") else AndroidColor.WHITE
+    val paintBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = if (isSelected) Color.YELLOW else Color.WHITE
         style = Paint.Style.STROKE
-        strokeWidth = (if (isSelected) 8f else 5f) * zoomScale
+        strokeWidth = if (isSelected) 10f else 6f
     }
-    canvas.drawCircle(size / 2f, size / 2f, size / 2f - (6f * zoomScale), borderPaint)
 
-    // Icon or Count Text
-    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.WHITE
-        textSize = (if (isCluster) 38f else 32f) * zoomScale
-        textAlign = Paint.Align.CENTER
-        typeface = Typeface.DEFAULT_BOLD
+    val centerX = size / 2f
+    val centerY = size / 2f
+    val radius = (size / 2f) - 10f
+
+    if (isSelected) {
+        val paintGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(100, 255, 235, 59)
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(centerX, centerY, radius + 8f, paintGlow)
     }
-    val yPos = (size / 2f) - ((textPaint.descent() + textPaint.ascent()) / 2f)
-    canvas.drawText(text, size / 2f, yPos, textPaint)
+
+    canvas.drawCircle(centerX, centerY, radius, paintCircle)
+    canvas.drawCircle(centerX, centerY, radius, paintBorder)
+
+    val paintText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = (size * 0.45f)
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+    }
+
+    val textBounds = Rect()
+    paintText.getTextBounds(text, 0, text.length, textBounds)
+    val textY = centerY + (textBounds.height() / 2f) - textBounds.bottom
+
+    canvas.drawText(text, centerX, textY, paintText)
 
     return bitmap
 }

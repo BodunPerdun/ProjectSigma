@@ -1,7 +1,5 @@
 package com.example.projectsigma
 
-import platform.Foundation.NSDate
-import platform.Foundation.timeIntervalSince1970
 import platform.UIKit.UIDevice
 
 class IOSPlatform: Platform {
@@ -10,4 +8,20 @@ class IOSPlatform: Platform {
 
 actual fun getPlatform(): Platform = IOSPlatform()
 
-actual fun getEpochMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()
+actual fun getEpochMillis(): Long = kotlin.system.getTimeMillis()
+
+actual fun shareText(context: Any?, text: String) {
+    // Platform share handler
+}
+
+actual fun getDeviceGoogleAccounts(context: Any?): List<GoogleAccountItem> {
+    return emptyList()
+}
+
+actual fun openOfficialGoogleSignInWebPage(context: Any?) {
+    // Platform web page launcher
+}
+
+actual fun launchNativeGoogleAccountPicker(context: Any?, onAccountPicked: (email: String, displayName: String) -> Unit) {
+    // Platform account picker launcher
+}

@@ -19,7 +19,7 @@ import kotlin.time.Duration.Companion.seconds
 
 class MainViewModel(
     private val eventsRepository: EventsRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
 ) {
 
     private val scope = CoroutineScope(Dispatchers.Main)
@@ -109,7 +109,7 @@ class MainViewModel(
         _selectedCluster.value = null
         _editingEvent.value = null
         _newPinLocation.value = Pair(lat, lng)
-        _isCreateEventOpen.value = true // Opens "Create event here" bottom sheet on tap
+        _isCreateEventOpen.value = true
     }
 
     fun openCreateEventForm(lat: Double = 51.5074, lng: Double = -0.1278) {
@@ -176,9 +176,7 @@ class MainViewModel(
             dateTime = dateTime,
             photoUrl = photoUrl
         )
-        if (updated != null) {
-            _selectedEvent.value = updated
-        }
+        updated?.let { _selectedEvent.value = it }
         _editingEvent.value = null
         _isCreateEventOpen.value = false
         _newPinLocation.value = null
@@ -196,7 +194,6 @@ class MainViewModel(
 
     fun updateUserAvatarInEvents(userId: String, photoUrl: String?, displayName: String) {
         eventsRepository.updateUserAvatarInEvents(userId, photoUrl, displayName)
-        // Refresh selected event if open so avatar updates live
         _selectedEvent.value?.let { current ->
             val refreshed = rawEvents.value.find { it.id == current.id }
             if (refreshed != null) {

@@ -34,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +43,7 @@ import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.User
 import com.example.projectsigma.model.localizedTitle
 import com.example.projectsigma.ui.components.UserAvatar
+import com.example.projectsigma.ui.main.components.ParticipantProfileSheet
 import com.example.projectsigma.viewmodel.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +59,6 @@ fun FriendsBottomSheet(
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val uriHandler = LocalUriHandler.current
 
     val currentLanguage by AppLanguageManager.currentLanguage.collectAsState()
     val s = AppLanguageManager.strings
@@ -77,7 +76,7 @@ fun FriendsBottomSheet(
         val userEvents = allEvents.filter { evt ->
             evt.createdById == currentUser.id || evt.participants.any { it.id == currentUser.id }
         }
-        val participantsMap = mutableMapOf<String, Pair<User, String>>() // userId -> (User, Shared Event Title)
+        val participantsMap = mutableMapOf<String, Pair<User, String>>()
         userEvents.forEach { evt ->
             evt.participants.filter { it.id != currentUser.id }.forEach { p ->
                 if (!participantsMap.containsKey(p.id)) {
@@ -85,7 +84,6 @@ fun FriendsBottomSheet(
                 }
             }
         }
-        // Fallback to discoverable nearby users if user hasn't joined events with others yet
         if (participantsMap.isEmpty()) {
             authViewModel.getDiscoverableNearbyUsers().map { Pair(it.first, it.second) }
         } else {
@@ -96,7 +94,7 @@ fun FriendsBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
         modifier = modifier
     ) {
         Column(
@@ -106,7 +104,8 @@ fun FriendsBottomSheet(
         ) {
             Text(
                 text = s.friendsSheetTitle,
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -114,6 +113,8 @@ fun FriendsBottomSheet(
             // Navigation Tabs
             PrimaryTabRow(
                 selectedTabIndex = selectedTabIndex,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Tab(
@@ -153,12 +154,17 @@ fun FriendsBottomSheet(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Text(s.noFriendsYetMsg, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                text = s.noFriendsYetMsg,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                s.noFriendsSubtitle,
+                                text = s.noFriendsSubtitle,
                                 fontSize = 12.sp,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     } else {
@@ -171,7 +177,7 @@ fun FriendsBottomSheet(
                             items(friendUsers) { friend ->
                                 Card(
                                     shape = RoundedCornerShape(16.dp),
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -197,12 +203,13 @@ fun FriendsBottomSheet(
                                             Text(
                                                 text = friend.displayName,
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 14.sp
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
                                                 text = s.tapToViewProfile,
                                                 fontSize = 12.sp,
-                                                color = Color.Gray
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
 
@@ -223,12 +230,12 @@ fun FriendsBottomSheet(
                 }
 
                 1 -> {
-                    // TAB 2: Event Co-Attendees (People from events user attended)
+                    // TAB 2: Event Co-Attendees
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = s.eventCoAttendeesSubtitle,
                             fontSize = 12.sp,
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
 
@@ -236,7 +243,7 @@ fun FriendsBottomSheet(
                             Text(
                                 text = s.noCoAttendeesMsg,
                                 fontSize = 13.sp,
-                                color = Color.Gray,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(vertical = 16.dp)
                             )
                         } else {
@@ -252,7 +259,7 @@ fun FriendsBottomSheet(
 
                                     Card(
                                         shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -278,18 +285,19 @@ fun FriendsBottomSheet(
                                                 Text(
                                                     text = coAttendeeUser.displayName,
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 14.sp
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.onSurface
                                                 )
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 Surface(
-                                                    color = Color(0xFFE3F2FD),
+                                                    color = MaterialTheme.colorScheme.primaryContainer,
                                                     shape = RoundedCornerShape(8.dp)
                                                 ) {
                                                     Text(
-                                                        text = "🎉 $eventOrDistanceInfo",
+                                                        text = "📍 $eventOrDistanceInfo",
                                                         fontSize = 10.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = Color(0xFF1976D2),
+                                                        color = MaterialTheme.colorScheme.primary,
                                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                     )
                                                 }
@@ -342,228 +350,13 @@ fun FriendsBottomSheet(
 
     // Modal Sheet: Friend / Event Co-Attendee Full Profile Card
     selectedUserProfile?.let { targetUser ->
-        val userSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        val isAlreadyFriend = currentUser.friends.contains(targetUser.id)
-        val isPending = friendRequestService?.isRequestPending(currentUser.id, targetUser.id) == true
-
-        ModalBottomSheet(
-            onDismissRequest = { selectedUserProfile = null },
-            sheetState = userSheetState,
-            containerColor = Color.White
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                UserAvatar(
-                    user = targetUser,
-                    size = 80.dp,
-                    textSizeSp = 36
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = targetUser.displayName,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                )
-
-                // Display User Bio if present
-                if (!targetUser.bio.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        color = Color(0xFFF8F9FA),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = s.bioTitle,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                color = Color.Gray
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = targetUser.bio,
-                                fontSize = 12.sp,
-                                color = Color.DarkGray
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Social Media Deep Link Chips (Privacy-Aware: Checks targetUser.isSocialsPublic)
-                if (targetUser.isSocialsPublic) {
-                    val hasSocials = !targetUser.instagramHandle.isNullOrBlank() || !targetUser.telegramHandle.isNullOrBlank()
-                    if (hasSocials) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (!targetUser.instagramHandle.isNullOrBlank()) {
-                                Surface(
-                                    color = Color(0xFFFCE4EC),
-                                    shape = RoundedCornerShape(16.dp),
-                                    modifier = Modifier.clickable {
-                                        uriHandler.openUri("https://instagram.com/_u/${targetUser.instagramHandle}")
-                                    }
-                                ) {
-                                    Text(
-                                        text = "📸 Instagram",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFC2185B),
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                                    )
-                                }
-                            }
-
-                            if (!targetUser.telegramHandle.isNullOrBlank()) {
-                                Surface(
-                                    color = Color(0xFFE3F2FD),
-                                    shape = RoundedCornerShape(16.dp),
-                                    modifier = Modifier.clickable {
-                                        uriHandler.openUri("https://t.me/${targetUser.telegramHandle}")
-                                    }
-                                ) {
-                                    Text(
-                                        text = "✈️ Telegram",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1976D2),
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        Text(s.noSocialsMsg, fontSize = 12.sp, color = Color.Gray)
-                    }
-                } else {
-                    Surface(
-                        color = Color(0xFFF5F5F5),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = s.socialsPrivateMsg,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "${targetUser.eventsCount}",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = s.eventsAttended,
-                                fontSize = 11.sp,
-                                color = Color.Gray
-                            )
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = s.accountStatusActive,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF4CAF50)
-                            )
-                            Text(
-                                text = s.accountStatusTitle,
-                                fontSize = 11.sp,
-                                color = Color.Gray
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    if (isAlreadyFriend) {
-                        OutlinedButton(
-                            onClick = {
-                                onRemoveFriend(targetUser.id)
-                                selectedUserProfile = null
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp),
-                            shape = RoundedCornerShape(25.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
-                            )
-                        ) {
-                            Text(s.removeFriendBtn, fontWeight = FontWeight.Bold)
-                        }
-                    } else if (isPending) {
-                        Button(
-                            onClick = {},
-                            enabled = false,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp),
-                            shape = RoundedCornerShape(25.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                disabledContainerColor = Color(0xFFFFF3CD),
-                                disabledContentColor = Color(0xFF856404)
-                            )
-                        ) {
-                            Text(s.pendingRequestBtn, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
-                    } else {
-                        Button(
-                            onClick = {
-                                onAddFriend(targetUser.id)
-                                selectedUserProfile = null
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp),
-                            shape = RoundedCornerShape(25.dp)
-                        ) {
-                            Text(s.addFriendBtn, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    Button(
-                        onClick = { selectedUserProfile = null },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(50.dp),
-                        shape = RoundedCornerShape(25.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0E0E0))
-                    ) {
-                        Text(s.closeBtn, color = Color.DarkGray, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
+        ParticipantProfileSheet(
+            participant = targetUser,
+            currentUser = currentUser,
+            friendRequestService = friendRequestService,
+            onAddFriend = onAddFriend,
+            onRemoveFriend = onRemoveFriend,
+            onDismissRequest = { selectedUserProfile = null }
+        )
     }
 }

@@ -9,6 +9,9 @@ data class EventParticipantDto(
     val displayName: String = "Participant",
     val photoUrl: String? = null,
     val bio: String? = null,
+    val instagramHandle: String? = null,
+    val telegramHandle: String? = null,
+    val isSocialsPublic: Boolean = true,
     val joinedAt: String? = null
 ) {
     val validId: String

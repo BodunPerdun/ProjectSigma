@@ -2,7 +2,6 @@ package com.example.projectsigma.ui.auth
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,6 +42,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.projectsigma.launchNativeGoogleAccountPicker
+import com.example.projectsigma.theme.AppThemeManager
 import com.example.projectsigma.ui.components.GoogleSignInButton
 import com.example.projectsigma.viewmodel.AuthViewModel
 
@@ -57,16 +58,27 @@ fun AuthScreen(
     val isRegisterMode by authViewModel.isRegisterMode.collectAsState()
     val isLoading by authViewModel.isLoading.collectAsState()
     val errorMessage by authViewModel.errorMessage.collectAsState()
+    val isDarkTheme by AppThemeManager.isDarkTheme.collectAsState()
 
     var passwordVisible by remember { mutableStateOf(false) }
 
-    val gradientBackground = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF3F51B5),
-            Color(0xFF2196F3),
-            Color(0xFF00BCD4)
+    val gradientBackground = if (isDarkTheme) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF0F172A),
+                Color(0xFF1E1B4B),
+                Color(0xFF090D16)
+            )
         )
-    )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF3F51B5),
+                Color(0xFF2196F3),
+                Color(0xFF00BCD4)
+            )
+        )
+    }
 
     Box(
         modifier = modifier
@@ -79,7 +91,7 @@ fun AuthScreen(
                 .fillMaxWidth(0.9f)
                 .padding(16.dp),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
         ) {
             Column(
@@ -98,7 +110,7 @@ fun AuthScreen(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "🗺️", fontSize = 32.sp)
+                    Text(text = "📍", fontSize = 32.sp)
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -113,7 +125,7 @@ fun AuthScreen(
 
                 Text(
                     text = "Discover & share city events in real-time",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray),
+                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                     textAlign = TextAlign.Center
                 )
 
@@ -122,7 +134,7 @@ fun AuthScreen(
                 // Tab Switcher
                 TabRow(
                     selectedTabIndex = if (isRegisterMode) 1 else 0,
-                    containerColor = Color(0xFFF5F5F5),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -149,7 +161,7 @@ fun AuthScreen(
                         }
                     ) {
                         Text(
-                            text = "🔑 Auto-fill Test Account (test@example.com)",
+                            text = "Auto-fill Test Account (test@example.com)",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary
@@ -251,7 +263,7 @@ fun AuthScreen(
                     HorizontalDivider(modifier = Modifier.weight(1f))
                     Text(
                         text = " OR ",
-                        style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray),
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
                     HorizontalDivider(modifier = Modifier.weight(1f))
@@ -259,9 +271,13 @@ fun AuthScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Google Sign-In Button
+                // Google Sign-In Button: Launches Native System Account Chooser!
                 GoogleSignInButton(
-                    onClick = { authViewModel.signInWithGoogle() },
+                    onClick = {
+                        launchNativeGoogleAccountPicker(null) { selectedEmail, selectedName ->
+                            authViewModel.signInWithGoogle(selectedEmail, selectedName)
+                        }
+                    },
                     enabled = !isLoading
                 )
             }

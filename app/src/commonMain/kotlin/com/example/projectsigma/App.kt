@@ -1,6 +1,5 @@
 package com.example.projectsigma
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -11,11 +10,8 @@ import androidx.compose.runtime.setValue
 import com.example.projectsigma.data.AuthRepository
 import com.example.projectsigma.data.EventsRepository
 import com.example.projectsigma.data.FriendRequestService
-import com.example.projectsigma.data.LocalAuthRepositoryImpl
-import com.example.projectsigma.data.LocalEventsRepositoryImpl
-import com.example.projectsigma.data.LocalFriendRequestServiceImpl
-import com.example.projectsigma.data.LocalNotificationsRepositoryImpl
 import com.example.projectsigma.data.NotificationsRepository
+import com.example.projectsigma.theme.LocaPopTheme
 import com.example.projectsigma.ui.auth.AuthScreen
 import com.example.projectsigma.ui.main.MainScreen
 import com.example.projectsigma.ui.splash.SplashScreen
@@ -24,12 +20,10 @@ import com.example.projectsigma.viewmodel.MainViewModel
 
 @Composable
 fun App(
-    eventsRepository: EventsRepository = remember { LocalEventsRepositoryImpl() },
-    authRepository: AuthRepository = remember { LocalAuthRepositoryImpl() },
-    notificationsRepository: NotificationsRepository = remember { LocalNotificationsRepositoryImpl() },
-    friendRequestService: FriendRequestService = remember(authRepository, notificationsRepository) {
-        LocalFriendRequestServiceImpl(authRepository, notificationsRepository)
-    }
+    eventsRepository: EventsRepository,
+    authRepository: AuthRepository,
+    notificationsRepository: NotificationsRepository,
+    friendRequestService: FriendRequestService
 ) {
     var isSplashVisible by remember { mutableStateOf(true) }
 
@@ -38,7 +32,7 @@ fun App(
 
     val currentUser by authViewModel.currentUser.collectAsState()
 
-    MaterialTheme {
+    LocaPopTheme {
         Surface {
             if (isSplashVisible) {
                 SplashScreen(onSplashFinished = { isSplashVisible = false })

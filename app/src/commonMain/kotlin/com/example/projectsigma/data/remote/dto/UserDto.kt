@@ -8,7 +8,10 @@ data class UserSummaryDto(
     val userId: String? = null,
     val displayName: String = "User",
     val photoUrl: String? = null,
-    val bio: String? = null
+    val bio: String? = null,
+    val instagramHandle: String? = null,
+    val telegramHandle: String? = null,
+    val isSocialsPublic: Boolean = true
 ) {
     val validId: String
         get() = if (id.isNotBlank()) id else (userId ?: "user_anon")
@@ -37,6 +40,7 @@ data class UserProfileDto(
 data class UpdateProfileRequest(
     val displayName: String? = null,
     val bio: String? = null,
+    val photoUrl: String? = null,
     val instagramHandle: String? = null,
     val telegramHandle: String? = null
 )

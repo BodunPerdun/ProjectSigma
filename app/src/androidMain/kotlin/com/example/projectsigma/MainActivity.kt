@@ -1,5 +1,7 @@
 package com.example.projectsigma
 
+import android.accounts.AccountManager
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -8,8 +10,6 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.tooling.preview.Preview
 import com.example.projectsigma.data.remote.KtorAuthRepositoryImpl
 import com.example.projectsigma.data.remote.KtorEventsRepositoryImpl
 import com.example.projectsigma.data.remote.KtorFriendRequestServiceImpl
@@ -19,55 +19,26 @@ import com.example.projectsigma.data.remote.MapWebSocketClient
 import com.example.projectsigma.data.remote.TokenManager
 import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.notification.NotificationHelper
+import com.example.projectsigma.theme.AppThemeManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(
-                android.graphics.Color.TRANSPARENT,
-                android.graphics.Color.TRANSPARENT
-            ),
-            navigationBarStyle = SystemBarStyle.light(
-                android.graphics.Color.TRANSPARENT,
-                android.graphics.Color.TRANSPARENT
-            )
+            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
         )
         super.onCreate(savedInstanceState)
+        currentActivityContext = applicationContext
 
-        // Initialize notification channel
         NotificationHelper.createNotificationChannel(applicationContext)
+        requestNotificationPermission()
+        restoreUserPreferences()
 
-        // Request POST_NOTIFICATIONS permission on Android 13+ (API 33+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val requestPermissionLauncher = registerForActivityResult(
-                ActivityResultContracts.RequestPermission()
-            ) { isGranted: Boolean ->
-                if (isGranted) {
-                    Log.d("MainActivity", "Notification permission granted.")
-                } else {
-                    Log.w("MainActivity", "Notification permission denied.")
-                }
-            }
-            requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-        }
-
-        // Initialize persistent language manager (Defaults to ENGLISH on clean install)
-        val langFile = File(applicationContext.filesDir, "app_language.txt")
-        val savedCode = if (langFile.exists()) langFile.readText().trim() else null
-
-        AppLanguageManager.initPersistence(savedCode) { newLang ->
-            try {
-                langFile.writeText(newLang.code)
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error saving language: ${e.message}")
-            }
-        }
-
-        // Initialize Ktor HTTP & WebSockets Network Repositories
         val tokenManager = TokenManager(applicationContext)
         val ktorClient = KtorHttpClient.createClient(tokenManager)
         val webSocketClient = MapWebSocketClient(ktorClient)
@@ -77,20 +48,41 @@ class MainActivity : ComponentActivity() {
         val ktorNotificationsRepository = KtorNotificationsRepositoryImpl(ktorClient)
         val ktorFriendRequestService = KtorFriendRequestServiceImpl(ktorClient)
 
-        // Connect real-time WebSocket client
+        val googleAccountPickerLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode == RESULT_OK && result.data != null) {
+                val accountName = result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
+                if (!accountName.isNullOrBlank()) {
+                    val formattedName = accountName.substringBefore("@")
+                        .replace(".", " ")
+                        .replace("_", " ")
+                        .split(" ")
+                        .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
+
+                    Log.d("MainActivity", "Google Account selected: $accountName")
+                    CoroutineScope(Dispatchers.Main).launch {
+                        ktorAuthRepository.signInWithGoogle(
+                            email = accountName,
+                            displayName = formattedName,
+                            photoUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"
+                        )
+                    }
+                }
+            }
+        }
+
+        globalAccountPickerLauncher = { intent ->
+            googleAccountPickerLauncher.launch(intent)
+        }
+
         webSocketClient.connect()
 
-        // Perform server health check on app startup in background Dispatchers.IO context
         CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val isHealthy = KtorHttpClient.checkServerHealth(ktorClient)
-                if (isHealthy) {
-                    Log.d("OkHttp", "Server Health Check OK at ${KtorHttpClient.BASE_URL}api/v1/health")
-                } else {
-                    Log.w("NetworkError", "Server health check failed at ${KtorHttpClient.BASE_URL}api/v1/health")
-                }
-            } catch (e: Exception) {
-                Log.e("NetworkError", "Failed to reach server at ${KtorHttpClient.BASE_URL}api/v1/health", e)
+            runCatching {
+                KtorHttpClient.checkServerHealth(ktorClient)
+            }.onFailure { e ->
+                Log.w("Network", "Server health check failed: ${e.message}")
             }
         }
 
@@ -103,10 +95,31 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
-}
 
-@Preview
-@Composable
-fun AppAndroidPreview() {
-    App()
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val launcher = registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                if (!isGranted) {
+                    Log.w("MainActivity", "POST_NOTIFICATIONS permission denied")
+                }
+            }
+            launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    private fun restoreUserPreferences() {
+        val langFile = File(applicationContext.filesDir, "app_language.txt")
+        val savedLangCode = if (langFile.exists()) langFile.readText().trim() else null
+        AppLanguageManager.initPersistence(savedLangCode) { newLang ->
+            runCatching { langFile.writeText(newLang.code) }
+        }
+
+        val themeFile = File(applicationContext.filesDir, "app_theme.txt")
+        val savedThemeState = if (themeFile.exists()) themeFile.readText().trim().toBooleanStrictOrNull() else null
+        AppThemeManager.initPersistence(savedThemeState) { isDark ->
+            runCatching { themeFile.writeText(isDark.toString()) }
+        }
+    }
 }

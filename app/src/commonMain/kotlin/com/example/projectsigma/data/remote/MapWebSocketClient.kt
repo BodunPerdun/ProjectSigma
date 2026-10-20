@@ -3,8 +3,10 @@ package com.example.projectsigma.data.remote
 import com.example.projectsigma.data.remote.dto.MapWebSocketMessage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.webSocketSession
+import io.ktor.websocket.DefaultWebSocketSession
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
+import io.ktor.websocket.send
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -20,6 +22,7 @@ class MapWebSocketClient(
     private val _messages = MutableSharedFlow<MapWebSocketMessage>()
     val messages: SharedFlow<MapWebSocketMessage> = _messages.asSharedFlow()
 
+    private var activeSession: DefaultWebSocketSession? = null
     private var isConnected = false
 
     fun connect() {
@@ -28,6 +31,7 @@ class MapWebSocketClient(
             try {
                 println("[OkHttp] Connecting to Map WebSocket at ${KtorHttpClient.WS_URL}...")
                 val session = client.webSocketSession(KtorHttpClient.WS_URL)
+                activeSession = session
                 isConnected = true
                 println("[OkHttp] Map WebSocket Connected Successfully!")
 
@@ -47,7 +51,28 @@ class MapWebSocketClient(
                 println("[NetworkError] WS connection error: ${e.message}")
                 isConnected = false
             } finally {
+                activeSession = null
                 isConnected = false
+            }
+        }
+    }
+
+    fun sendLocationUpdate(userId: String, lat: Double, lng: Double) {
+        scope.launch {
+            try {
+                val session = activeSession ?: return@launch
+                val json = """
+                    {
+                        "action": "USER_LOCATION_UPDATE",
+                        "userId": "$userId",
+                        "latitude": $lat,
+                        "longitude": $lng
+                    }
+                """.trimIndent()
+                session.send(Frame.Text(json))
+                println("[OkHttp] WS location update sent for $userId: ($lat, $lng)")
+            } catch (e: Exception) {
+                println("[NetworkError] Error sending WS location update: ${e.message}")
             }
         }
     }

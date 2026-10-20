@@ -9,6 +9,7 @@ import com.example.projectsigma.model.EventCluster
 expect fun MapLibreMapContainer(
     clusters: List<EventCluster>,
     selectedEvent: Event?,
+    newPinLocation: Pair<Double, Double>? = null,
     onMarkerClick: (eventId: String) -> Unit,
     onClusterClick: (cluster: EventCluster) -> Unit,
     onMapClick: (latitude: Double, longitude: Double) -> Unit,
