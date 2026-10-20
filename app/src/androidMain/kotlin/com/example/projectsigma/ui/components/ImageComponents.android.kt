@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -65,7 +66,7 @@ actual fun AsyncEventImage(
     coil.compose.AsyncImage(
         model = sanitizedModel,
         contentDescription = "Event photo",
-        contentScale = ContentScale.Crop,
+        contentScale = ContentScale.Fit,
         modifier = modifier
     )
 }
@@ -82,7 +83,9 @@ actual fun GalleryImagePickerButton(
     ) { uri ->
         if (uri != null) {
             val base64Path = saveImageToInternalStorage(context, uri)
-            onImagePicked(base64Path)
+            if (base64Path.isNotBlank()) {
+                onImagePicked(base64Path)
+            }
         }
     }
 
@@ -97,7 +100,7 @@ actual fun GalleryImagePickerButton(
             .height(48.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Text("🖼️ Pick Photo from Device Gallery", fontWeight = FontWeight.SemiBold)
+        Text("🖼️ Pick Photo (JPG/PNG <= 5MB)", fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -115,7 +118,9 @@ actual fun GalleryImagePickerContainer(
     ) { uri ->
         if (uri != null) {
             val base64Path = saveImageToInternalStorage(context, uri)
-            onImagePicked(base64Path)
+            if (base64Path.isNotBlank()) {
+                onImagePicked(base64Path)
+            }
         }
     }
 
@@ -135,6 +140,20 @@ actual fun GalleryImagePickerContainer(
 
 private fun saveImageToInternalStorage(context: Context, uri: Uri): String {
     return try {
+        val mimeType = context.contentResolver.getType(uri) ?: ""
+        val isJpgOrPng = mimeType.contains("jpeg", ignoreCase = true) ||
+                mimeType.contains("jpg", ignoreCase = true) ||
+                mimeType.contains("png", ignoreCase = true)
+
+        if (!isJpgOrPng && mimeType.isNotBlank()) {
+            Toast.makeText(
+                context,
+                "⚠️ Unsupported format. Only JPG and PNG photos are allowed.",
+                Toast.LENGTH_LONG
+            ).show()
+            return ""
+        }
+
         val inputStream = context.contentResolver.openInputStream(uri) ?: return uri.toString()
         val imagesDir = File(context.filesDir, "saved_images")
         if (!imagesDir.exists()) {
@@ -147,6 +166,18 @@ private fun saveImageToInternalStorage(context: Context, uri: Uri): String {
                 input.copyTo(output)
             }
         }
+
+        val maxSizeBytes = 5 * 1024 * 1024L // 5 MB Limit
+        if (permanentFile.length() > maxSizeBytes) {
+            permanentFile.delete()
+            Toast.makeText(
+                context,
+                "⚠️ Photo size exceeds 5 MB limit. Please select a smaller photo.",
+                Toast.LENGTH_LONG
+            ).show()
+            return ""
+        }
+
         val base64Data = convertImageFileToBase64(permanentFile)
         Log.d("ImagePicker", "Saved permanent image file and generated Base64 data (length ${base64Data.length})")
         base64Data

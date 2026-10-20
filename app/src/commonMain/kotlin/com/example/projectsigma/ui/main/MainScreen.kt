@@ -1,5 +1,6 @@
 package com.example.projectsigma.ui.main
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.projectsigma.data.FriendRequestService
@@ -154,7 +156,7 @@ fun MainScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                // Full screen MapLibre GL Native Map view with physical draft pin rendering
+                // Full screen MapLibre GL Native Map view
                 MapLibreMapContainer(
                     clusters = clusters,
                     selectedEvent = selectedEvent,
@@ -167,7 +169,20 @@ fun MainScreen(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Google Maps Style Floating Rounded Header Bar with compact 6dp side paddings
+                // Complete Top Area Touch Blocker (100% blocks top region above, inside, and between panels)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(132.dp)
+                        .align(Alignment.TopCenter)
+                        .pointerInput(Unit) {
+                            detectTapGestures {
+                                // Consumes all taps in top 132dp area so no pins can ever be placed in gaps!
+                            }
+                        }
+                )
+
+                // Google Maps Style Floating Rounded Header Bar
                 Surface(
                     shape = RoundedCornerShape(28.dp),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
@@ -281,7 +296,7 @@ fun MainScreen(
                     }
                 }
 
-                // Top Category Filter Chips with compact 6dp side paddings
+                // Top Category Filter Chips
                 key(currentLanguage) {
                     Row(
                         modifier = Modifier
@@ -321,11 +336,12 @@ fun MainScreen(
                     }
                 }
 
-                // Bottom Right Floating Controls: My Location FAB & Friends FAB
+                // Bottom Right Floating Controls: My Location FAB & Friends FAB with touch blocker
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(bottom = 24.dp, end = 16.dp),
+                        .padding(bottom = 24.dp, end = 16.dp)
+                        .pointerInput(Unit) { detectTapGestures { /* Block map tap under FABs */ } },
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     horizontalAlignment = Alignment.End
                 ) {

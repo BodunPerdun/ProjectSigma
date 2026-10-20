@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
@@ -290,26 +293,37 @@ fun CreateEventBottomSheet(
             )
 
             photoUrl?.let { url ->
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                ) {
-                    AsyncEventImage(
-                        url = url,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(s.photoAttachedMsg, fontSize = 12.sp, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
-                    TextButton(onClick = { photoUrl = null }) {
-                        Text(s.removePhotoBtn, fontSize = 12.sp, color = Color.Red)
+                if (url.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncEventImage(
+                                url = url,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(s.photoAttachedMsg, fontSize = 12.sp, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+                        TextButton(onClick = { photoUrl = null }) {
+                            Text(s.removePhotoBtn, fontSize = 12.sp, color = Color.Red)
+                        }
                     }
                 }
             }

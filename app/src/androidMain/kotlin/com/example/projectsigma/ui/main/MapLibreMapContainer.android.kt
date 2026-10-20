@@ -9,11 +9,13 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.util.Log
+import android.view.Gravity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +55,9 @@ import org.maplibre.geojson.Point
 private const val EVENTS_SOURCE_ID = "events-geojson-source"
 private const val EVENTS_LAYER_ID = "events-symbol-layer"
 
+// One-time flag ensuring camera animates to GPS position ONLY once upon cold app launch!
+private var hasInitialGpsCameraMoved = false
+
 @Composable
 actual fun MapLibreMapContainer(
     clusters: List<EventCluster>,
@@ -82,11 +87,13 @@ actual fun MapLibreMapContainer(
     val currentOnClusterClick by rememberUpdatedState(onClusterClick)
     val currentOnMapClick by rememberUpdatedState(onMapClick)
 
-    // Physics-based spring bounce animation for new draft pin entrance
+    // Physics-based spring bounce animation for new draft pin entrance & smooth shrink exit
     val draftPinScale = remember { Animatable(0f) }
+    var lastDraftLocation by remember { mutableStateOf<Pair<Double, Double>?>(null) }
 
     LaunchedEffect(newPinLocation) {
         if (newPinLocation != null) {
+            lastDraftLocation = newPinLocation
             draftPinScale.snapTo(0.2f)
             draftPinScale.animateTo(
                 targetValue = 1.0f,
@@ -95,8 +102,12 @@ actual fun MapLibreMapContainer(
                     stiffness = Spring.StiffnessLow
                 )
             )
-        } else {
-            draftPinScale.snapTo(0f)
+        } else if (draftPinScale.value > 0f) {
+            draftPinScale.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = 250)
+            )
+            lastDraftLocation = null
         }
     }
 
@@ -117,6 +128,11 @@ actual fun MapLibreMapContainer(
         MapView(context).apply {
             getMapAsync { map ->
                 mapLibreMap = map
+
+                // Disable default built-in top-right compass widget that appeared behind Profile Avatar
+                map.uiSettings.isCompassEnabled = false
+                map.uiSettings.setLogoGravity(Gravity.BOTTOM or Gravity.START)
+                map.uiSettings.setAttributionGravity(Gravity.BOTTOM or Gravity.START)
 
                 // Initial camera target: London (51.5074, -0.1278)
                 map.cameraPosition = CameraPosition.Builder()
@@ -241,7 +257,7 @@ actual fun MapLibreMapContainer(
                     style = style,
                     clusters = clusters,
                     selectedEvent = selectedEvent,
-                    newPinLocation = newPinLocation,
+                    newPinLocation = newPinLocation ?: lastDraftLocation,
                     draftPinScale = draftPinScale.value,
                     zoomScale = zoomScale
                 )
@@ -294,18 +310,21 @@ private fun enableLocationComponent(context: Context, map: MapLibreMap) {
             locationComponent.cameraMode = CameraMode.NONE
             locationComponent.renderMode = RenderMode.COMPASS
 
-            // Instantly animate camera to user GPS position upon launch
-            val lastLoc = locationComponent.lastKnownLocation
-            if (lastLoc != null) {
-                map.animateCamera(
-                    CameraUpdateFactory.newCameraPosition(
-                        CameraPosition.Builder()
-                            .target(LatLng(lastLoc.latitude, lastLoc.longitude))
-                            .zoom(14.5)
-                            .build()
-                    ),
-                    1000
-                )
+            // Animate camera to user GPS position ONLY ONCE upon cold app launch!
+            if (!hasInitialGpsCameraMoved) {
+                val lastLoc = locationComponent.lastKnownLocation
+                if (lastLoc != null) {
+                    hasInitialGpsCameraMoved = true
+                    map.animateCamera(
+                        CameraUpdateFactory.newCameraPosition(
+                            CameraPosition.Builder()
+                                .target(LatLng(lastLoc.latitude, lastLoc.longitude))
+                                .zoom(14.5)
+                                .build()
+                        ),
+                        1000
+                    )
+                }
             }
         } catch (e: Exception) {
             println("[MapLibre] Error activating location component: ${e.message}")
@@ -378,9 +397,9 @@ private fun updateMapLayers(
         }
     }
 
-    // Physical Draft Pin Rendering on Map Canvas with Spring Bounce Scale Animation
-    if (newPinLocation != null) {
-        val animatedZoomScale = zoomScale * 1.35f * draftPinScale.coerceAtLeast(0.1f)
+    // Physical Draft Pin Rendering on Map Canvas with Spring Bounce Scale Animation & Exit Shrink Animation
+    if (newPinLocation != null && draftPinScale > 0.05f) {
+        val animatedZoomScale = zoomScale * 1.35f * draftPinScale.coerceAtLeast(0.01f)
 
         val draftBitmap = createRawBitmapIcon(
             context = context,
