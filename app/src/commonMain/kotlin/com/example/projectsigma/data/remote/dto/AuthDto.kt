@@ -18,7 +18,10 @@ data class LoginRequest(
 
 @Serializable
 data class GoogleAuthRequest(
-    val idToken: String
+    val idToken: String,
+    val displayName: String? = null,
+    val photoUrl: String? = null,
+    val email: String? = null
 )
 
 @Serializable

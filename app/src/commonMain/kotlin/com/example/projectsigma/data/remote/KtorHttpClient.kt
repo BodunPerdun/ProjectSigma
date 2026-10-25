@@ -15,7 +15,6 @@ import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
-import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -59,23 +58,15 @@ object KtorHttpClient {
 
             defaultRequest {
                 contentType(ContentType.Application.Json)
-                if (tokenManager != null) {
-                    val token = tokenManager.getAccessToken()
-                    val path = url.build().encodedPath
-                    val isAuthRoute = path.contains("/auth/") || path.contains("/health")
-                    if (!token.isNullOrBlank() && token != "null" && !isAuthRoute) {
-                        header("Authorization", "Bearer $token")
-                        println("[OkHttp] Attached Authorization Header: Bearer ${token.take(15)}...")
-                    }
-                }
             }
 
             if (tokenManager != null) {
                 install(Auth) {
                     bearer {
+                        // Preemptively send Bearer token on 1st request for protected routes (without waiting for 401 challenge)
                         sendWithoutRequest { request: HttpRequestBuilder ->
                             val path = request.url.build().encodedPath
-                            path.contains("/auth/") || path.contains("/health")
+                            !path.contains("/auth/") && !path.contains("/health")
                         }
 
                         loadTokens {

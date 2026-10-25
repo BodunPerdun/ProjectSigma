@@ -6,6 +6,7 @@ import com.example.projectsigma.data.remote.dto.CreateEventRequest
 import com.example.projectsigma.data.remote.dto.EventDto
 import com.example.projectsigma.data.remote.dto.EventParticipantDto
 import com.example.projectsigma.data.remote.dto.MapWebSocketMessage
+import com.example.projectsigma.getEpochMillis
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.EventCategory
 import com.example.projectsigma.model.User
@@ -13,7 +14,6 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
-import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -161,12 +161,7 @@ class KtorEventsRepositoryImpl(
 
     suspend fun fetchEventsInRegion(): Result<List<Event>> {
         return try {
-            val token = tokenManager?.getAccessToken()
-            val response: ApiResponse<List<EventDto>> = client.get("$baseUrl/api/v1/events") {
-                if (!token.isNullOrBlank()) {
-                    header("Authorization", "Bearer $token")
-                }
-            }.body()
+            val response: ApiResponse<List<EventDto>> = client.get("$baseUrl/api/v1/events").body()
             val dtoList = response.data ?: emptyList()
             val models = dtoList.map { it.toModel() }
             mergeWithLocalCreatedEvents(models)
@@ -188,9 +183,9 @@ class KtorEventsRepositoryImpl(
         photoUrl: String?,
         user: User
     ): Event {
-        val localId = "evt_local_${user.id}_${dateTime.hashCode()}_${_eventsFlow.value.size}"
+        val uniqueEventId = "evt_${getEpochMillis()}_${(1000..9999).random()}"
         val newEvt = Event(
-            id = localId,
+            id = uniqueEventId,
             title = title,
             description = description,
             category = category,
@@ -204,11 +199,11 @@ class KtorEventsRepositoryImpl(
         )
         _eventsFlow.value = _eventsFlow.value + newEvt
 
-        // Post to remote Ktor backend in background
+        // Post to remote Ktor backend in background with unique ID
         scope.launch {
             try {
-                val token = tokenManager?.getAccessToken()
                 val request = CreateEventRequest(
+                    id = uniqueEventId,
                     title = title,
                     description = description,
                     category = category.name,
@@ -219,9 +214,6 @@ class KtorEventsRepositoryImpl(
                 )
                 val httpResponse: HttpResponse = client.post("$baseUrl/api/v1/events") {
                     contentType(ContentType.Application.Json)
-                    if (!token.isNullOrBlank()) {
-                        header("Authorization", "Bearer $token")
-                    }
                     setBody(request)
                 }
 
@@ -231,7 +223,7 @@ class KtorEventsRepositoryImpl(
                     if (serverDto != null) {
                         val serverModel = serverDto.toModel()
                         _eventsFlow.value = _eventsFlow.value.map {
-                            if (it.id == localId) serverModel else it
+                            if (it.id == uniqueEventId) serverModel else it
                         }
                         println("[OkHttp] Confirmed event creation on Ktor server (${httpResponse.status}): ${serverModel.id}")
                     }
@@ -271,9 +263,9 @@ class KtorEventsRepositoryImpl(
 
         scope.launch {
             try {
-                val token = tokenManager?.getAccessToken()
                 val currentEvt = updatedList.find { it.id == eventId }
                 val request = CreateEventRequest(
+                    id = eventId,
                     title = title,
                     description = description,
                     category = category.name,
@@ -284,9 +276,6 @@ class KtorEventsRepositoryImpl(
                 )
                 val httpResponse: HttpResponse = client.put("$baseUrl/api/v1/events/$eventId") {
                     contentType(ContentType.Application.Json)
-                    if (!token.isNullOrBlank()) {
-                        header("Authorization", "Bearer $token")
-                    }
                     setBody(request)
                 }
                 if (httpResponse.status.value in 200..299) {
@@ -310,12 +299,7 @@ class KtorEventsRepositoryImpl(
 
         scope.launch {
             try {
-                val token = tokenManager?.getAccessToken()
-                val httpResponse: HttpResponse = client.delete("$baseUrl/api/v1/events/$eventId") {
-                    if (!token.isNullOrBlank()) {
-                        header("Authorization", "Bearer $token")
-                    }
-                }
+                val httpResponse: HttpResponse = client.delete("$baseUrl/api/v1/events/$eventId")
                 if (httpResponse.status.value in 200..299) {
                     println("[OkHttp] Deleted event $eventId on Ktor server (${httpResponse.status}).")
                 } else {
@@ -335,6 +319,10 @@ class KtorEventsRepositoryImpl(
     }
 
     override fun joinEvent(eventId: String, user: User): Event? {
+        if (eventId.isBlank() || eventId == "null") {
+            println("[OkHttp] Skip joinEvent: eventId is null or invalid.")
+            return null
+        }
         val updatedList = _eventsFlow.value.map { evt ->
             if (evt.id == eventId && !evt.participants.any { it.id == user.id }) {
                 evt.copy(participants = evt.participants + user)
@@ -344,13 +332,8 @@ class KtorEventsRepositoryImpl(
 
         scope.launch {
             try {
-                val token = tokenManager?.getAccessToken()
-                println("[OkHttp] Sending joinEvent request to server: $baseUrl/api/v1/events/$eventId/join (Token present: ${!token.isNullOrBlank()})")
-                val httpResponse: HttpResponse = client.post("$baseUrl/api/v1/events/$eventId/join") {
-                    if (!token.isNullOrBlank()) {
-                        header("Authorization", "Bearer $token")
-                    }
-                }
+                println("[OkHttp] Sending joinEvent request to server: $baseUrl/api/v1/events/$eventId/join")
+                val httpResponse: HttpResponse = client.post("$baseUrl/api/v1/events/$eventId/join")
                 if (httpResponse.status.value in 200..299) {
                     println("[OkHttp] Successfully joined event $eventId on Ktor server (${httpResponse.status}).")
                 } else {
@@ -366,6 +349,10 @@ class KtorEventsRepositoryImpl(
     }
 
     override fun leaveEvent(eventId: String, userId: String): Event? {
+        if (eventId.isBlank() || eventId == "null") {
+            println("[OkHttp] Skip leaveEvent: eventId is null or invalid.")
+            return null
+        }
         val updatedList = _eventsFlow.value.map { evt ->
             if (evt.id == eventId) {
                 evt.copy(participants = evt.participants.filter { it.id != userId })
@@ -375,13 +362,8 @@ class KtorEventsRepositoryImpl(
 
         scope.launch {
             try {
-                val token = tokenManager?.getAccessToken()
-                println("[OkHttp] Sending leaveEvent request to server: $baseUrl/api/v1/events/$eventId/leave (Token present: ${!token.isNullOrBlank()})")
-                val httpResponse: HttpResponse = client.post("$baseUrl/api/v1/events/$eventId/leave") {
-                    if (!token.isNullOrBlank()) {
-                        header("Authorization", "Bearer $token")
-                    }
-                }
+                println("[OkHttp] Sending leaveEvent request to server: $baseUrl/api/v1/events/$eventId/leave")
+                val httpResponse: HttpResponse = client.post("$baseUrl/api/v1/events/$eventId/leave")
                 if (httpResponse.status.value in 200..299) {
                     println("[OkHttp] Successfully left event $eventId on Ktor server (${httpResponse.status}).")
                 } else {

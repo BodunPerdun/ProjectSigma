@@ -24,7 +24,8 @@ import java.net.URL
 data class GoogleUserProfile(
     val name: String,
     val avatarUrl: String,
-    val email: String
+    val email: String,
+    val idToken: String = ""
 )
 
 object GoogleOAuthAppAuthHelper {
@@ -47,7 +48,7 @@ object GoogleOAuthAppAuthHelper {
                 Uri.parse(REDIRECT_URI)
             )
                 .setScopes("openid", "profile", "email")
-                .setPrompt("select_account")
+                .setPrompt("select_account consent")
                 .build()
 
             authService.getAuthorizationRequestIntent(authRequest)
@@ -84,7 +85,7 @@ object GoogleOAuthAppAuthHelper {
 
                     if (tokenResponse != null) {
                         val accessToken = tokenResponse.accessToken
-                        val idToken = tokenResponse.idToken
+                        val idToken = tokenResponse.idToken ?: ""
 
                         Log.d("AppAuth", "Token Exchange Success. AccessToken length: ${accessToken?.length}")
 
@@ -92,7 +93,7 @@ object GoogleOAuthAppAuthHelper {
                             val profile = parseUserProfile(idToken, accessToken)
                             withContext(Dispatchers.Main) {
                                 if (profile != null) {
-                                    onProfileReceived(profile)
+                                    onProfileReceived(profile.copy(idToken = idToken))
                                 } else {
                                     onError("Failed to parse Google user profile")
                                 }
@@ -115,19 +116,33 @@ object GoogleOAuthAppAuthHelper {
                 try {
                     val parts = idToken.split(".")
                     if (parts.size >= 2) {
-                        val payloadJson = String(Base64.decode(parts[1], Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING))
+                        val payloadJson = String(
+                            Base64.decode(parts[1], Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING),
+                            Charsets.UTF_8
+                        )
                         val json = JSONObject(payloadJson)
 
                         val email = json.optString("email", "")
-                        val name = json.optString("name", json.optString("given_name", email.substringBefore("@")))
+                        var name = json.optString("name", "")
+                        if (name.isBlank()) {
+                            name = json.optString("given_name", "")
+                        }
+                        if (name.isBlank() && email.isNotBlank()) {
+                            name = email.substringBefore("@")
+                                .replace(".", " ")
+                                .replace("_", " ")
+                                .split(" ")
+                                .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
+                        }
                         val picture = json.optString("picture", "")
 
                         if (email.isNotBlank()) {
                             Log.d("AppAuth", "Extracted Profile from ID Token: $name ($email), Avatar: $picture")
                             return@withContext GoogleUserProfile(
-                                name = name.ifBlank { email.substringBefore("@") },
+                                name = name.ifBlank { "Google User" },
                                 avatarUrl = picture.ifBlank { "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150" },
-                                email = email
+                                email = email,
+                                idToken = idToken
                             )
                         }
                     }
@@ -151,14 +166,25 @@ object GoogleOAuthAppAuthHelper {
 
                         val json = JSONObject(responseText)
                         val email = json.optString("email", "")
-                        val name = json.optString("name", email.substringBefore("@"))
+                        var name = json.optString("name", "")
+                        if (name.isBlank()) {
+                            name = json.optString("given_name", "")
+                        }
+                        if (name.isBlank() && email.isNotBlank()) {
+                            name = email.substringBefore("@")
+                                .replace(".", " ")
+                                .replace("_", " ")
+                                .split(" ")
+                                .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
+                        }
                         val picture = json.optString("picture", "")
 
                         Log.d("AppAuth", "Fetched Profile from Google UserInfo endpoint: $name ($email)")
                         return@withContext GoogleUserProfile(
-                            name = name.ifBlank { email.substringBefore("@") },
+                            name = name.ifBlank { "Google User" },
                             avatarUrl = picture.ifBlank { "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150" },
-                            email = email
+                            email = email,
+                            idToken = idToken ?: ""
                         )
                     }
                 } catch (e: Exception) {

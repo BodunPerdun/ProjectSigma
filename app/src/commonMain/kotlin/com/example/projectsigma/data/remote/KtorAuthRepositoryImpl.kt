@@ -14,6 +14,7 @@ import com.example.projectsigma.model.User
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -63,19 +64,21 @@ class KtorAuthRepositoryImpl(
         )
     }
 
-    suspend fun fetchCurrentUserProfile(): Result<User> {
-        val token = tokenManager.getAccessToken()
+    suspend fun fetchCurrentUserProfile(forcedToken: String? = null): Result<User> {
+        val token = forcedToken ?: tokenManager.getAccessToken()
         if (token.isNullOrBlank()) {
             return Result.failure(Exception("No access token available. Please log in."))
         }
         return try {
-            val response: ApiResponse<UserProfileDto> = client.get("$baseUrl/api/v1/users/me").body()
+            val response: ApiResponse<UserProfileDto> = client.get("$baseUrl/api/v1/users/me") {
+                header("Authorization", "Bearer $token")
+            }.body()
             val dto = response.data
             if (response.success && dto != null) {
                 val serverModel = dto.toModel()
                 val currentLocal = _currentUser.value
                 val finalUser = serverModel.copy(
-                    displayName = if (serverModel.displayName.isBlank() || serverModel.displayName == "User") (currentLocal?.displayName ?: "User") else serverModel.displayName,
+                    displayName = if (serverModel.displayName.isBlank() || serverModel.displayName.startsWith("google", ignoreCase = true)) (currentLocal?.displayName ?: "User") else serverModel.displayName,
                     photoUrl = if (serverModel.photoUrl.isNullOrBlank()) currentLocal?.photoUrl else serverModel.photoUrl
                 )
                 _currentUser.value = finalUser
@@ -90,6 +93,7 @@ class KtorAuthRepositoryImpl(
     }
 
     override suspend fun loginWithEmail(email: String, pass: String): Result<User> {
+        _currentUser.value = null
         val trimmedEmail = email.trim().lowercase()
         if (trimmedEmail.isBlank() || pass.isBlank()) {
             return Result.failure(IllegalArgumentException("Please enter your email and password."))
@@ -111,7 +115,7 @@ class KtorAuthRepositoryImpl(
                 tokenManager.saveTokens(accessToken, refreshToken, userId)
                 println("[OkHttp] Saved accessToken immediately after login: ${accessToken.take(15)}...")
 
-                val profileResult = fetchCurrentUserProfile()
+                val profileResult = fetchCurrentUserProfile(forcedToken = accessToken)
                 if (profileResult.isSuccess) {
                     profileResult
                 } else {
@@ -157,6 +161,7 @@ class KtorAuthRepositoryImpl(
     }
 
     override suspend fun registerWithEmail(email: String, pass: String, name: String): Result<User> {
+        _currentUser.value = null
         val trimmedEmail = email.trim().lowercase()
         val trimmedName = name.trim()
 
@@ -180,7 +185,7 @@ class KtorAuthRepositoryImpl(
                 tokenManager.saveTokens(accessToken, refreshToken, userId)
                 println("[OkHttp] Saved accessToken immediately after registration: ${accessToken.take(15)}...")
 
-                val profileResult = fetchCurrentUserProfile()
+                val profileResult = fetchCurrentUserProfile(forcedToken = accessToken)
                 if (profileResult.isSuccess) {
                     profileResult
                 } else {
@@ -221,12 +226,27 @@ class KtorAuthRepositoryImpl(
     }
 
     override suspend fun signInWithGoogle(email: String?, displayName: String?, photoUrl: String?): Result<User> {
+        _currentUser.value = null
+
         val googleEmail = email?.trim()?.lowercase() ?: "google.user@gmail.com"
-        val googleName = displayName?.trim() ?: "Google User"
+        val googleName = if (!displayName.isNullOrBlank() && !displayName.startsWith("google", ignoreCase = true)) {
+            displayName.trim()
+        } else {
+            googleEmail.substringBefore("@")
+                .replace(".", " ")
+                .replace("_", " ")
+                .split(" ")
+                .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
+        }
         val googleAvatar = photoUrl ?: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"
 
         return try {
-            val request = GoogleAuthRequest(idToken = "google_token_${googleEmail.hashCode()}")
+            val request = GoogleAuthRequest(
+                idToken = "google_token_${googleEmail.hashCode()}",
+                displayName = googleName,
+                photoUrl = googleAvatar,
+                email = googleEmail
+            )
             val response: ApiResponse<TokenResponse> = client.post("$baseUrl/api/v1/auth/google") {
                 contentType(ContentType.Application.Json)
                 setBody(request)
@@ -241,12 +261,12 @@ class KtorAuthRepositoryImpl(
                 tokenManager.saveTokens(accessToken, refreshToken, userId)
                 println("[OkHttp] Saved REAL JWT accessToken from Ktor server: ${accessToken.take(15)}...")
 
-                val profileResult = fetchCurrentUserProfile()
+                val profileResult = fetchCurrentUserProfile(forcedToken = accessToken)
                 if (profileResult.isSuccess) {
                     val serverUser = profileResult.getOrNull()
                     if (serverUser != null) {
                         val mergedUser = serverUser.copy(
-                            displayName = if (serverUser.displayName.isBlank() || serverUser.displayName == "User") googleName else serverUser.displayName,
+                            displayName = if (serverUser.displayName.isBlank() || serverUser.displayName.startsWith("google", ignoreCase = true)) googleName else serverUser.displayName,
                             photoUrl = if (serverUser.photoUrl.isNullOrBlank()) googleAvatar else serverUser.photoUrl
                         )
                         _currentUser.value = mergedUser
