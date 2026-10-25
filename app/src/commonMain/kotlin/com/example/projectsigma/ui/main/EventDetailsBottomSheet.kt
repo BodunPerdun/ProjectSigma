@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.projectsigma.data.FriendRequestService
@@ -91,7 +94,8 @@ fun EventDetailsBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = modifier
     ) {
         Column(
@@ -121,7 +125,9 @@ fun EventDetailsBottomSheet(
                             text = event.category.localizedLabel,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -136,7 +142,9 @@ fun EventDetailsBottomSheet(
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF856404),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -153,7 +161,8 @@ fun EventDetailsBottomSheet(
                 Text(
                     text = event.localizedTitle,
                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -165,7 +174,7 @@ fun EventDetailsBottomSheet(
                         shareText(null, shareContent)
                     },
                     shape = CircleShape,
-                    color = Color(0xFFF0F4F8),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier.size(40.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -190,21 +199,29 @@ fun EventDetailsBottomSheet(
                 )
             )
 
-            // Event Cover Photo Card (if present)
+            // Event Cover Photo Card (Full aspect ratio, no cropping)
             val photoUrl = event.photoUrl
             if (photoUrl != null) {
                 Spacer(modifier = Modifier.height(14.dp))
                 Card(
                     shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp)
+                        .heightIn(max = 240.dp)
                         .clip(RoundedCornerShape(16.dp))
                 ) {
-                    AsyncEventImage(
-                        url = photoUrl,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncEventImage(
+                            url = photoUrl,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
 
@@ -213,14 +230,14 @@ fun EventDetailsBottomSheet(
             // Description
             Text(
                 text = event.localizedDescription,
-                style = MaterialTheme.typography.bodyLarge.copy(color = Color.DarkGray)
+                style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
             )
 
             Spacer(modifier = Modifier.height(20.dp))
 
             // Clickable Organizer Card
             Surface(
-                color = Color(0xFFF5F5F5),
+                color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -253,12 +270,13 @@ fun EventDetailsBottomSheet(
                         Text(
                             text = s.organizedBy,
                             fontSize = 11.sp,
-                            color = Color.Gray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = event.createdByName,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
@@ -276,7 +294,8 @@ fun EventDetailsBottomSheet(
             ) {
                 Text(
                     text = "${s.participantsTitle} (${event.participants.size})",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 if (event.participants.size > 4) {
@@ -292,7 +311,7 @@ fun EventDetailsBottomSheet(
                 Text(
                     text = s.noParticipantsMsg,
                     fontSize = 13.sp,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
                 val displayParticipants = if (event.participants.size > 4) event.participants.take(3) else event.participants
@@ -306,7 +325,7 @@ fun EventDetailsBottomSheet(
                 ) {
                     displayParticipants.forEach { participant ->
                         Surface(
-                            color = Color(0xFFF0F4F8),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
                             shape = RoundedCornerShape(20.dp),
                             modifier = Modifier.clickable {
                                 selectedParticipantProfile = participant
@@ -325,7 +344,8 @@ fun EventDetailsBottomSheet(
                                 Text(
                                     text = participant.displayName,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
@@ -371,8 +391,10 @@ fun EventDetailsBottomSheet(
                     ) {
                         Text(
                             text = s.editDetailsBtn,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -391,8 +413,10 @@ fun EventDetailsBottomSheet(
                     ) {
                         Text(
                             text = s.deletePinBtn,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -416,8 +440,10 @@ fun EventDetailsBottomSheet(
                 ) {
                     Text(
                         text = s.leaveEventBtn,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             } else {
@@ -433,8 +459,10 @@ fun EventDetailsBottomSheet(
                 ) {
                     Text(
                         text = s.joinEventBtn,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

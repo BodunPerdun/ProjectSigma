@@ -30,7 +30,7 @@ import kotlinx.serialization.json.Json
 
 object KtorHttpClient {
 
-    var BASE_URL = "http://192.168.0.101:8080/"
+    var BASE_URL = "https://sliceable-overboard-kitchen.ngrok-free.dev"
     var WS_URL = "ws://192.168.0.101:8080/api/v1/ws/map"
 
     val jsonConfig = Json {
@@ -63,8 +63,9 @@ object KtorHttpClient {
                     val token = tokenManager.getAccessToken()
                     val path = url.build().encodedPath
                     val isAuthRoute = path.contains("/auth/") || path.contains("/health")
-                    if (!token.isNullOrBlank() && !isAuthRoute) {
+                    if (!token.isNullOrBlank() && token != "null" && !isAuthRoute) {
                         header("Authorization", "Bearer $token")
+                        println("[OkHttp] Attached Authorization Header: Bearer ${token.take(15)}...")
                     }
                 }
             }
@@ -80,29 +81,28 @@ object KtorHttpClient {
                         loadTokens {
                             val access = tokenManager.getAccessToken()
                             val refresh = tokenManager.getRefreshToken() ?: ""
-                            if (!access.isNullOrBlank()) {
+                            if (!access.isNullOrBlank() && access != "null") {
                                 BearerTokens(access, refresh)
                             } else null
                         }
 
                         refreshTokens {
+                            val refresh = tokenManager.getRefreshToken()
+                            if (refresh.isNullOrBlank() || refresh == "null") return@refreshTokens null
                             try {
-                                val oldRefresh = tokenManager.getRefreshToken()
-                                if (oldRefresh.isNullOrBlank()) {
-                                    tokenManager.clearTokens()
-                                    return@refreshTokens null
-                                }
                                 val baseUrl = BASE_URL.removeSuffix("/")
                                 val response: ApiResponse<TokenResponse> = client.post("$baseUrl/api/v1/auth/refresh") {
+                                    markAsRefreshTokenRequest()
                                     contentType(ContentType.Application.Json)
-                                    setBody(mapOf("refreshToken" to oldRefresh))
+                                    setBody(mapOf("refreshToken" to refresh))
                                 }.body()
 
                                 val newTokens = response.data
                                 val newAccess = newTokens?.validAccessToken
                                 val newRefresh = newTokens?.validRefreshToken ?: ""
+                                val userId = newTokens?.user?.id ?: tokenManager.getUserId() ?: ""
                                 if (response.success && !newAccess.isNullOrBlank()) {
-                                    tokenManager.saveTokens(newAccess, newRefresh)
+                                    tokenManager.saveTokens(newAccess, newRefresh, userId)
                                     BearerTokens(newAccess, newRefresh)
                                 } else {
                                     tokenManager.clearTokens()

@@ -11,6 +11,12 @@ expect fun AsyncEventImage(
 )
 
 @Composable
+expect fun AsyncAvatarImage(
+    url: String,
+    modifier: Modifier = Modifier
+)
+
+@Composable
 expect fun GalleryImagePickerButton(
     onImagePicked: (String) -> Unit,
     modifier: Modifier = Modifier

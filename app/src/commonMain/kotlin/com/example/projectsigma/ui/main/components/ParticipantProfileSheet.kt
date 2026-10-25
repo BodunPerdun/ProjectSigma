@@ -11,15 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -28,6 +24,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,7 +40,10 @@ import androidx.compose.ui.unit.sp
 import com.example.projectsigma.data.FriendRequestService
 import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.model.User
+import com.example.projectsigma.ui.components.RealInstagramIcon
+import com.example.projectsigma.ui.components.RealTelegramIcon
 import com.example.projectsigma.ui.components.UserAvatar
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,11 +58,15 @@ fun ParticipantProfileSheet(
 ) {
     val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val uriHandler = LocalUriHandler.current
+    val coroutineScope = rememberCoroutineScope()
     val s = AppLanguageManager.strings
 
     val isAlreadyFriend = currentUser?.friends?.contains(participant.id) == true
     val isSelf = currentUser?.id == participant.id
-    val isPending = currentUser != null && friendRequestService?.isRequestPending(currentUser.id, participant.id) == true
+
+    var isPendingState by remember(currentUser, participant.id) {
+        mutableStateOf(currentUser != null && friendRequestService?.isRequestPending(currentUser.id, participant.id) == true)
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -203,12 +211,7 @@ fun ParticipantProfileSheet(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Edit,
-                                        contentDescription = "Instagram",
-                                        tint = Color(0xFFC2185B),
-                                        modifier = Modifier.size(14.dp)
-                                    )
+                                    RealInstagramIcon(size = 16.dp)
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "@${participant.instagramHandle}",
@@ -232,12 +235,7 @@ fun ParticipantProfileSheet(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Send,
-                                        contentDescription = "Telegram",
-                                        tint = Color(0xFF1976D2),
-                                        modifier = Modifier.size(14.dp)
-                                    )
+                                    RealTelegramIcon(size = 16.dp)
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "@${participant.telegramHandle}",
@@ -267,7 +265,7 @@ fun ParticipantProfileSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Action Buttons Row (Add Friend / Remove Friend)
+            // Action Buttons Row (Add Friend / Cancel Request / Remove Friend)
             if (!isSelf && currentUser != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -289,26 +287,29 @@ fun ParticipantProfileSheet(
                         ) {
                             Text(s.removeFriendBtn, fontWeight = FontWeight.Bold)
                         }
-                    } else if (isPending) {
-                        Button(
-                            onClick = {},
-                            enabled = false,
+                    } else if (isPendingState) {
+                        OutlinedButton(
+                            onClick = {
+                                isPendingState = false
+                                coroutineScope.launch {
+                                    friendRequestService?.cancelFriendRequest(currentUser.id, participant.id)
+                                }
+                            },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp),
                             shape = RoundedCornerShape(24.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                disabledContainerColor = Color(0xFFFFF3CD),
-                                disabledContentColor = Color(0xFF856404)
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            Text(s.pendingRequestBtn, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("✕ Cancel Request", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     } else {
                         Button(
                             onClick = {
+                                isPendingState = true
                                 onAddFriend(participant.id)
-                                onDismissRequest()
                             },
                             modifier = Modifier
                                 .weight(1f)

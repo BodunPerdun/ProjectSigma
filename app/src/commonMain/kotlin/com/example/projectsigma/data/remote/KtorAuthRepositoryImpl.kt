@@ -39,6 +39,15 @@ class KtorAuthRepositoryImpl(
     private val _currentUser = MutableStateFlow<User?>(null)
     override val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
+    init {
+        val savedToken = tokenManager.getAccessToken()
+        if (!savedToken.isNullOrBlank()) {
+            scope.launch {
+                fetchCurrentUserProfile()
+            }
+        }
+    }
+
     private fun UserProfileDto.toModel(): User {
         return User(
             id = validId,
@@ -63,9 +72,14 @@ class KtorAuthRepositoryImpl(
             val response: ApiResponse<UserProfileDto> = client.get("$baseUrl/api/v1/users/me").body()
             val dto = response.data
             if (response.success && dto != null) {
-                val model = dto.toModel()
-                _currentUser.value = model
-                Result.success(model)
+                val serverModel = dto.toModel()
+                val currentLocal = _currentUser.value
+                val finalUser = serverModel.copy(
+                    displayName = if (serverModel.displayName.isBlank() || serverModel.displayName == "User") (currentLocal?.displayName ?: "User") else serverModel.displayName,
+                    photoUrl = if (serverModel.photoUrl.isNullOrBlank()) currentLocal?.photoUrl else serverModel.photoUrl
+                )
+                _currentUser.value = finalUser
+                Result.success(finalUser)
             } else {
                 Result.failure(Exception(response.message ?: "Failed to fetch user profile."))
             }
@@ -91,8 +105,10 @@ class KtorAuthRepositoryImpl(
             val tokens = response.data
             val accessToken = tokens?.validAccessToken
             val refreshToken = tokens?.validRefreshToken ?: ""
+            val userId = tokens?.user?.id ?: ""
+
             if (response.success && !accessToken.isNullOrBlank()) {
-                tokenManager.saveTokens(accessToken, refreshToken)
+                tokenManager.saveTokens(accessToken, refreshToken, userId)
                 println("[OkHttp] Saved accessToken immediately after login: ${accessToken.take(15)}...")
 
                 val profileResult = fetchCurrentUserProfile()
@@ -100,7 +116,7 @@ class KtorAuthRepositoryImpl(
                     profileResult
                 } else {
                     val user = User(
-                        id = "user_${trimmedEmail.hashCode()}",
+                        id = if (userId.isNotBlank()) userId else "user_${trimmedEmail.hashCode()}",
                         email = trimmedEmail,
                         displayName = trimmedEmail.substringBefore("@").replaceFirstChar { it.uppercase() },
                         isLocationVisible = true,
@@ -158,8 +174,10 @@ class KtorAuthRepositoryImpl(
             val tokens = response.data
             val accessToken = tokens?.validAccessToken
             val refreshToken = tokens?.validRefreshToken ?: ""
+            val userId = tokens?.user?.id ?: ""
+
             if (response.success && !accessToken.isNullOrBlank()) {
-                tokenManager.saveTokens(accessToken, refreshToken)
+                tokenManager.saveTokens(accessToken, refreshToken, userId)
                 println("[OkHttp] Saved accessToken immediately after registration: ${accessToken.take(15)}...")
 
                 val profileResult = fetchCurrentUserProfile()
@@ -167,7 +185,7 @@ class KtorAuthRepositoryImpl(
                     profileResult
                 } else {
                     val user = User(
-                        id = "user_${trimmedEmail.hashCode()}",
+                        id = if (userId.isNotBlank()) userId else "user_${trimmedEmail.hashCode()}",
                         email = trimmedEmail,
                         displayName = trimmedName,
                         isLocationVisible = true,
@@ -217,37 +235,44 @@ class KtorAuthRepositoryImpl(
             val tokens = response.data
             val accessToken = tokens?.validAccessToken
             val refreshToken = tokens?.validRefreshToken ?: ""
+            val userId = tokens?.user?.id ?: ""
+
             if (response.success && !accessToken.isNullOrBlank()) {
-                tokenManager.saveTokens(accessToken, refreshToken)
+                tokenManager.saveTokens(accessToken, refreshToken, userId)
+                println("[OkHttp] Saved REAL JWT accessToken from Ktor server: ${accessToken.take(15)}...")
+
                 val profileResult = fetchCurrentUserProfile()
                 if (profileResult.isSuccess) {
-                    profileResult
-                } else {
-                    val googleUser = User(
-                        id = "user_google_${googleEmail.hashCode()}",
-                        email = googleEmail,
-                        displayName = googleName,
-                        photoUrl = googleAvatar,
-                        isLocationVisible = true,
-                        isSocialsPublic = true
-                    )
-                    _currentUser.value = googleUser
-                    Result.success(googleUser)
+                    val serverUser = profileResult.getOrNull()
+                    if (serverUser != null) {
+                        val mergedUser = serverUser.copy(
+                            displayName = if (serverUser.displayName.isBlank() || serverUser.displayName == "User") googleName else serverUser.displayName,
+                            photoUrl = if (serverUser.photoUrl.isNullOrBlank()) googleAvatar else serverUser.photoUrl
+                        )
+                        _currentUser.value = mergedUser
+
+                        if (serverUser.photoUrl.isNullOrBlank()) {
+                            updateProfilePhoto(googleAvatar)
+                        }
+
+                        return Result.success(mergedUser)
+                    }
                 }
-            } else {
-                val googleUser = User(
-                    id = "user_google_${googleEmail.hashCode()}",
-                    email = googleEmail,
-                    displayName = googleName,
-                    photoUrl = googleAvatar,
-                    isLocationVisible = true,
-                    isSocialsPublic = true
-                )
-                _currentUser.value = googleUser
-                Result.success(googleUser)
             }
+
+            val fallbackGoogleUser = User(
+                id = if (userId.isNotBlank()) userId else "user_google_${googleEmail.hashCode()}",
+                email = googleEmail,
+                displayName = googleName,
+                photoUrl = googleAvatar,
+                isLocationVisible = true,
+                isSocialsPublic = true
+            )
+            _currentUser.value = fallbackGoogleUser
+            Result.success(fallbackGoogleUser)
         } catch (e: Exception) {
-            val googleUser = User(
+            println("[NetworkError] Google sign-in network exception: ${e.message}")
+            val fallbackGoogleUser = User(
                 id = "user_google_${googleEmail.hashCode()}",
                 email = googleEmail,
                 displayName = googleName,
@@ -255,8 +280,8 @@ class KtorAuthRepositoryImpl(
                 isLocationVisible = true,
                 isSocialsPublic = true
             )
-            _currentUser.value = googleUser
-            Result.success(googleUser)
+            _currentUser.value = fallbackGoogleUser
+            Result.success(fallbackGoogleUser)
         }
     }
 

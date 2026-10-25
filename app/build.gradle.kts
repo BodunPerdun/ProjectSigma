@@ -36,9 +36,7 @@ kotlin {
             implementation("io.ktor:ktor-client-okhttp:2.3.12")
             implementation("androidx.security:security-crypto:1.1.0-alpha06")
             implementation("com.google.firebase:firebase-messaging-ktx:24.0.0")
-            implementation("androidx.credentials:credentials:1.3.0")
-            implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
-            implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+            implementation("net.openid:appauth:0.11.1")
             implementation(compose.preview)
         }
         commonMain.dependencies {
@@ -60,6 +58,9 @@ kotlin {
             implementation("io.ktor:ktor-client-logging:2.3.12")
         }
     }
+    sourceSets.androidUnitTest.dependencies {
+        implementation(kotlin("test"))
+    }
 }
 
 android {
@@ -72,6 +73,8 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
+
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.googleusercontent.apps.692599024856-ikoc5a4le4uub5aq76smifhb0nqfp3g3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

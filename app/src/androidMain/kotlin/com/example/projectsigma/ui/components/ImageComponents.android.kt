@@ -30,43 +30,60 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 
+private fun sanitizeImageModel(url: String): Any {
+    val trimmed = url.trim()
+    val baseUrl = KtorHttpClient.BASE_URL.removeSuffix("/")
+
+    return when {
+        // Base64 Data URIs (data:image/jpeg;base64,...)
+        trimmed.startsWith("data:image") -> {
+            try {
+                val base64Data = trimmed.substringAfter("base64,")
+                Base64.decode(base64Data, Base64.DEFAULT)
+            } catch (e: Exception) {
+                trimmed
+            }
+        }
+
+        // Local file paths on Android device
+        trimmed.startsWith("content://") || trimmed.startsWith("file://") -> trimmed
+        trimmed.startsWith("/data/") || trimmed.startsWith("/storage/") || File(trimmed).exists() -> File(trimmed)
+
+        // Web URLs from Ktor Server
+        trimmed.startsWith("http://localhost:8080") -> trimmed.replace("http://localhost:8080", baseUrl)
+        trimmed.startsWith("http://10.0.2.2:8080") -> trimmed.replace("http://10.0.2.2:8080", baseUrl)
+        trimmed.startsWith("http://") || trimmed.startsWith("https://") -> trimmed
+        trimmed.startsWith("/") -> "$baseUrl$trimmed"
+        else -> trimmed
+    }
+}
+
 @Composable
 actual fun AsyncEventImage(
     url: String,
     modifier: Modifier
 ) {
-    val sanitizedModel: Any = remember(url) {
-        val trimmed = url.trim()
-        val baseUrl = KtorHttpClient.BASE_URL.removeSuffix("/")
-
-        when {
-            // Base64 Data URIs (data:image/jpeg;base64,...)
-            trimmed.startsWith("data:image") -> {
-                try {
-                    val base64Data = trimmed.substringAfter("base64,")
-                    Base64.decode(base64Data, Base64.DEFAULT)
-                } catch (e: Exception) {
-                    trimmed
-                }
-            }
-
-            // Local file paths on Android device
-            trimmed.startsWith("content://") || trimmed.startsWith("file://") -> trimmed
-            trimmed.startsWith("/data/") || trimmed.startsWith("/storage/") || File(trimmed).exists() -> File(trimmed)
-
-            // Web URLs from Ktor Server
-            trimmed.startsWith("http://localhost:8080") -> trimmed.replace("http://localhost:8080", baseUrl)
-            trimmed.startsWith("http://10.0.2.2:8080") -> trimmed.replace("http://10.0.2.2:8080", baseUrl)
-            trimmed.startsWith("http://") || trimmed.startsWith("https://") -> trimmed
-            trimmed.startsWith("/") -> "$baseUrl$trimmed"
-            else -> trimmed
-        }
-    }
+    val sanitizedModel: Any = remember(url) { sanitizeImageModel(url) }
 
     coil.compose.AsyncImage(
         model = sanitizedModel,
         contentDescription = "Event photo",
         contentScale = ContentScale.Fit,
+        modifier = modifier
+    )
+}
+
+@Composable
+actual fun AsyncAvatarImage(
+    url: String,
+    modifier: Modifier
+) {
+    val sanitizedModel: Any = remember(url) { sanitizeImageModel(url) }
+
+    coil.compose.AsyncImage(
+        model = sanitizedModel,
+        contentDescription = "User avatar photo",
+        contentScale = ContentScale.Crop,
         modifier = modifier
     )
 }

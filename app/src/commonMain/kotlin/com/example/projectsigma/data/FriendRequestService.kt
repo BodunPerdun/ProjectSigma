@@ -11,5 +11,6 @@ interface FriendRequestService {
     suspend fun sendFriendRequest(sender: User, receiverUser: User): Result<FriendRequest>
     suspend fun acceptFriendRequest(requestId: String, senderId: String, receiverId: String): Result<Boolean>
     suspend fun declineFriendRequest(requestId: String): Result<Boolean>
+    suspend fun cancelFriendRequest(senderId: String, receiverId: String): Result<Boolean>
     fun isRequestPending(senderId: String, receiverId: String): Boolean
 }

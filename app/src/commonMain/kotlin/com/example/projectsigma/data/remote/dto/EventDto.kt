@@ -37,9 +37,10 @@ data class EventDto(
 
 @Serializable
 data class CreateEventRequest(
+    val id: String? = null,
     val title: String,
-    val description: String,
-    val category: String,
+    val description: String = "",
+    val category: String = "MEETUP",
     val latitude: Double,
     val longitude: Double,
     val dateTime: String,

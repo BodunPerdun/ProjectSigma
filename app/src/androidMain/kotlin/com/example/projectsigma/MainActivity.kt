@@ -1,7 +1,5 @@
 package com.example.projectsigma
 
-import android.accounts.AccountManager
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -10,6 +8,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import com.example.projectsigma.auth.GoogleOAuthAppAuthHelper
 import com.example.projectsigma.data.remote.KtorAuthRepositoryImpl
 import com.example.projectsigma.data.remote.KtorEventsRepositoryImpl
 import com.example.projectsigma.data.remote.KtorFriendRequestServiceImpl
@@ -29,8 +28,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            )
         )
         super.onCreate(savedInstanceState)
         currentActivityContext = applicationContext
@@ -44,30 +49,34 @@ class MainActivity : ComponentActivity() {
         val webSocketClient = MapWebSocketClient(ktorClient)
 
         val ktorAuthRepository = KtorAuthRepositoryImpl(ktorClient, tokenManager)
-        val ktorEventsRepository = KtorEventsRepositoryImpl(ktorClient, webSocketClient)
+        val ktorEventsRepository = KtorEventsRepositoryImpl(ktorClient, webSocketClient, tokenManager)
         val ktorNotificationsRepository = KtorNotificationsRepositoryImpl(ktorClient)
-        val ktorFriendRequestService = KtorFriendRequestServiceImpl(ktorClient)
+        val ktorFriendRequestService = KtorFriendRequestServiceImpl(ktorClient, ktorNotificationsRepository)
 
+        // Register ActivityResultLauncher for AppAuth Google OAuth 2.0 PKCE Result
         val googleAccountPickerLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
         ) { result ->
             if (result.resultCode == RESULT_OK && result.data != null) {
-                val accountName = result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
-                if (!accountName.isNullOrBlank()) {
-                    val formattedName = accountName.substringBefore("@")
-                        .replace(".", " ")
-                        .replace("_", " ")
-                        .split(" ")
-                        .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
-
-                    Log.d("MainActivity", "Google Account selected: $accountName")
-                    CoroutineScope(Dispatchers.Main).launch {
-                        ktorAuthRepository.signInWithGoogle(
-                            email = accountName,
-                            displayName = formattedName,
-                            photoUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"
-                        )
-                    }
+                val intentData = result.data!!
+                CoroutineScope(Dispatchers.Main).launch {
+                    GoogleOAuthAppAuthHelper.handleAuthResult(
+                        context = applicationContext,
+                        data = intentData,
+                        onProfileReceived = { profile ->
+                            Log.d("MainActivity", "AppAuth OAuth Success: ${profile.name} (${profile.email}), Avatar: ${profile.avatarUrl}")
+                            CoroutineScope(Dispatchers.Main).launch {
+                                ktorAuthRepository.signInWithGoogle(
+                                    email = profile.email,
+                                    displayName = profile.name,
+                                    photoUrl = profile.avatarUrl
+                                )
+                            }
+                        },
+                        onError = { errorMsg ->
+                            Log.e("MainActivity", "AppAuth OAuth Failed: $errorMsg")
+                        }
+                    )
                 }
             }
         }

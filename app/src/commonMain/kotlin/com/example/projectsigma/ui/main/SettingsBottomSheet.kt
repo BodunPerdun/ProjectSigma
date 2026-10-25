@@ -31,7 +31,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -65,6 +64,7 @@ fun SettingsBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = modifier
     ) {
         Column(
@@ -82,7 +82,8 @@ fun SettingsBottomSheet(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = s.settingsTitle,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -105,12 +106,13 @@ fun SettingsBottomSheet(
                             Text(
                                 text = s.darkThemeTitle,
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = s.darkThemeSubtitle,
                                 fontSize = 11.sp,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
@@ -139,7 +141,7 @@ fun SettingsBottomSheet(
                             text = "Privacy & Discovery",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
-                            color = Color.Gray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -154,12 +156,13 @@ fun SettingsBottomSheet(
                                 Text(
                                     text = s.visibleNearbyTitle,
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = s.visibleNearbySubtitle,
                                     fontSize = 11.sp,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
@@ -173,7 +176,7 @@ fun SettingsBottomSheet(
 
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 10.dp),
-                            color = Color(0xFFE0E0E0).copy(alpha = 0.5f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
                         )
 
                         // Switch 2: Public Social Links (Instagram & Telegram)
@@ -186,12 +189,13 @@ fun SettingsBottomSheet(
                                 Text(
                                     text = s.publicSocialsTitle,
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = s.publicSocialsSubtitle,
                                     fontSize = 11.sp,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
@@ -213,7 +217,7 @@ fun SettingsBottomSheet(
                 text = s.appLanguage,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Gray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -247,7 +251,8 @@ fun SettingsBottomSheet(
                             Text(
                                 text = lang.displayName,
                                 fontSize = 15.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                             )
                         }
 
@@ -271,13 +276,14 @@ fun SettingsBottomSheet(
                     Text(
                         text = "📍 LocaPop v1.0",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = appSubtitle,
                         fontSize = 11.sp,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

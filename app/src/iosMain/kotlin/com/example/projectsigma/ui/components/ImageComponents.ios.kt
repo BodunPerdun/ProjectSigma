@@ -30,6 +30,19 @@ actual fun AsyncEventImage(
 }
 
 @Composable
+actual fun AsyncAvatarImage(
+    url: String,
+    modifier: Modifier
+) {
+    Box(
+        modifier = modifier.background(Color(0xFF2C2C2C)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("👤 Avatar", color = Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
 actual fun GalleryImagePickerButton(
     onImagePicked: (String) -> Unit,
     modifier: Modifier

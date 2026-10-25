@@ -52,7 +52,7 @@ fun UserAvatar(
         contentAlignment = Alignment.Center
     ) {
         if (!photoUrl.isNullOrBlank()) {
-            AsyncEventImage(
+            AsyncAvatarImage(
                 url = photoUrl,
                 modifier = Modifier.fillMaxSize()
             )

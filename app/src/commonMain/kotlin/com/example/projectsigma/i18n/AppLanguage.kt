@@ -103,7 +103,12 @@ data class AppStrings(
     val pendingRequestBtn: String,
 
     val darkThemeTitle: String,
-    val darkThemeSubtitle: String
+    val darkThemeSubtitle: String,
+
+    val googleSignInTitle: String,
+    val googleSignInSubtitle: String,
+    val chooseOtherAccountBtn: String,
+    val openGoogleWebBtn: String
 )
 
 object AppLanguageManager {

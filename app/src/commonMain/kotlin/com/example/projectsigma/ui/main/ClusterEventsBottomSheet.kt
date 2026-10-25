@@ -28,13 +28,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.projectsigma.i18n.AppLanguageManager
 import com.example.projectsigma.model.EventCluster
 import com.example.projectsigma.model.formattedDateTime
+import com.example.projectsigma.model.localizedTitle
 import com.example.projectsigma.ui.components.AsyncEventImage
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,7 +54,8 @@ fun ClusterEventsBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = modifier
     ) {
         Column(
@@ -63,12 +65,13 @@ fun ClusterEventsBottomSheet(
         ) {
             Text(
                 text = "${s.clusterTitle} (${cluster.count})",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Text(
                 text = s.clusterSubtitle,
-                style = MaterialTheme.typography.bodySmall.copy(color = Color.Gray),
+                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
@@ -81,7 +84,7 @@ fun ClusterEventsBottomSheet(
                 items(cluster.events) { event ->
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F7FA)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -95,7 +98,6 @@ fun ClusterEventsBottomSheet(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Render Event Cover Photo Thumbnail if present, otherwise Category Emoji Icon
                             if (event.photoUrl != null) {
                                 Box(
                                     modifier = Modifier
@@ -118,9 +120,12 @@ fun ClusterEventsBottomSheet(
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = event.title,
+                                    text = event.localizedTitle,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
@@ -132,7 +137,9 @@ fun ClusterEventsBottomSheet(
                                 Text(
                                     text = "${s.organizedBy} ${event.createdByName}",
                                     fontSize = 11.sp,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }

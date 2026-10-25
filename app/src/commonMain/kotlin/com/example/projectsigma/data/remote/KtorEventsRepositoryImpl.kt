@@ -4,6 +4,8 @@ import com.example.projectsigma.data.EventsRepository
 import com.example.projectsigma.data.remote.dto.ApiResponse
 import com.example.projectsigma.data.remote.dto.CreateEventRequest
 import com.example.projectsigma.data.remote.dto.EventDto
+import com.example.projectsigma.data.remote.dto.EventParticipantDto
+import com.example.projectsigma.data.remote.dto.MapWebSocketMessage
 import com.example.projectsigma.model.Event
 import com.example.projectsigma.model.EventCategory
 import com.example.projectsigma.model.User
@@ -11,141 +13,160 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
-import io.ktor.client.request.parameter
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.seconds
 
 class KtorEventsRepositoryImpl(
     private val client: HttpClient,
-    private val webSocketClient: MapWebSocketClient? = null
+    private val webSocketClient: MapWebSocketClient,
+    private val tokenManager: TokenManager? = null
 ) : EventsRepository {
 
+    private val scope = CoroutineScope(Dispatchers.IO)
     private val baseUrl: String
         get() = KtorHttpClient.BASE_URL.removeSuffix("/")
 
-    private val scope = CoroutineScope(Dispatchers.IO)
     private val _eventsFlow = MutableStateFlow<List<Event>>(emptyList())
     override val eventsFlow: StateFlow<List<Event>> = _eventsFlow.asStateFlow()
 
     init {
+        // Listen to WebSocket real-time map updates
         scope.launch {
-            fetchEventsInRegion()
-        }
-
-        // Periodic 8-second auto-sync timer to ensure maps on all devices stay synchronized
-        scope.launch {
-            while (isActive) {
-                delay(8.seconds)
-                fetchEventsInRegion()
+            webSocketClient.messages.collect { wsMsg ->
+                handleWebSocketMessage(wsMsg)
             }
         }
 
-        webSocketClient?.let { ws ->
-            scope.launch {
-                ws.connect()
-                ws.messages.collect { wsMessage ->
-                    println("[OkHttp] Received WebSocket event action: ${wsMessage.action}")
-                    when (wsMessage.action) {
-                        "EVENT_CREATED" -> {
-                            wsMessage.event?.let { dto ->
-                                val newModel = dto.toModel()
-                                if (!_eventsFlow.value.any { it.id == newModel.id }) {
-                                    _eventsFlow.value = _eventsFlow.value + newModel
-                                    println("[OkHttp] WebSocket dynamically added new event pin: ${newModel.title}")
-                                }
-                            } ?: fetchEventsInRegion()
-                        }
-                        "EVENT_UPDATED" -> {
-                            wsMessage.event?.let { dto ->
-                                val updatedModel = dto.toModel()
-                                _eventsFlow.value = _eventsFlow.value.map {
-                                    if (it.id == updatedModel.id) updatedModel else it
-                                }
-                            } ?: fetchEventsInRegion()
-                        }
-                        "EVENT_DELETED" -> {
-                            wsMessage.eventId?.let { delId ->
-                                _eventsFlow.value = _eventsFlow.value.filter { it.id != delId }
-                            } ?: fetchEventsInRegion()
-                        }
-                        "PARTICIPANT_JOINED", "PARTICIPANT_LEFT" -> {
-                            fetchEventsInRegion()
-                        }
-                        else -> {
-                            fetchEventsInRegion()
-                        }
+        // Fetch initial event pins from Ktor server
+        scope.launch {
+            fetchEventsInRegion()
+        }
+    }
+
+    private fun handleWebSocketMessage(msg: MapWebSocketMessage) {
+        when (msg.action) {
+            "EVENT_CREATED" -> {
+                msg.event?.toModel()?.let { newEvt ->
+                    if (!_eventsFlow.value.any { it.id == newEvt.id }) {
+                        _eventsFlow.value = _eventsFlow.value + newEvt
                     }
                 }
+            }
+            "EVENT_UPDATED" -> {
+                msg.event?.toModel()?.let { updatedEvt ->
+                    _eventsFlow.value = _eventsFlow.value.map {
+                        if (it.id == updatedEvt.id) updatedEvt else it
+                    }
+                }
+            }
+            "EVENT_DELETED" -> {
+                val deletedId = msg.eventId ?: msg.event?.id
+                if (!deletedId.isNullOrBlank()) {
+                    _eventsFlow.value = _eventsFlow.value.filter { it.id != deletedId }
+                }
+            }
+            "PARTICIPANT_JOINED" -> {
+                val eventId = msg.eventId
+                val joinedUser = msg.participant?.toModel() ?: msg.user?.toModel()
+                if (!eventId.isNullOrBlank() && joinedUser != null) {
+                    _eventsFlow.value = _eventsFlow.value.map { evt ->
+                        if (evt.id == eventId && !evt.participants.any { it.id == joinedUser.id }) {
+                            evt.copy(participants = evt.participants + joinedUser)
+                        } else evt
+                    }
+                }
+            }
+            "PARTICIPANT_LEFT" -> {
+                val eventId = msg.eventId
+                val leftUserId = msg.userId
+                if (!eventId.isNullOrBlank() && !leftUserId.isNullOrBlank()) {
+                    _eventsFlow.value = _eventsFlow.value.map { evt ->
+                        if (evt.id == eventId) {
+                            evt.copy(participants = evt.participants.filter { it.id != leftUserId })
+                        } else evt
+                    }
+                }
+            }
+            else -> {
+                scope.launch { fetchEventsInRegion() }
             }
         }
     }
 
-    private fun EventDto.toModel(): Event {
-        val creatorId = createdBy?.validId ?: "user_creator"
-        val creatorName = createdBy?.displayName ?: "Organizer"
-        val creatorAvatar = createdBy?.photoUrl
+    private fun EventParticipantDto.toModel(): User {
+        return User(
+            id = validId,
+            email = "",
+            displayName = displayName,
+            photoUrl = photoUrl,
+            bio = bio,
+            instagramHandle = instagramHandle,
+            telegramHandle = telegramHandle,
+            isSocialsPublic = isSocialsPublic
+        )
+    }
 
+    private fun EventDto.toModel(): Event {
+        val mappedCategory = try {
+            EventCategory.valueOf(category.uppercase())
+        } catch (e: Exception) {
+            EventCategory.MEETUP
+        }
+
+        val creatorUser = createdBy
         return Event(
-            id = id,
+            id = if (id.isNotBlank()) id else "evt_server_${dateTime.hashCode()}",
             title = title,
             description = description,
-            category = EventCategory.fromName(category),
+            category = mappedCategory,
             latitude = latitude,
             longitude = longitude,
             dateTime = dateTime,
-            createdById = creatorId,
-            createdByName = creatorName,
-            createdByAvatarUrl = creatorAvatar,
+            createdById = creatorUser?.id ?: "usr_creator",
+            createdByName = creatorUser?.displayName ?: "Organizer",
+            createdByAvatarUrl = creatorUser?.photoUrl,
             photoUrl = photoUrl,
-            participants = participants.map { p ->
-                User(
-                    id = p.validId,
-                    email = "",
-                    displayName = p.displayName,
-                    photoUrl = p.photoUrl,
-                    bio = p.bio
-                )
-            }
+            participants = participants.map { it.toModel() }
         )
     }
 
     private fun mergeWithLocalCreatedEvents(serverEvents: List<Event>) {
-        val serverIds = serverEvents.map { it.id }.toSet()
-        val localCreated = _eventsFlow.value.filter { localEvt ->
-            localEvt.id.startsWith("evt_local_") && !serverIds.contains(localEvt.id)
+        val localCreatedEvents = _eventsFlow.value.filter { it.id.startsWith("evt_local_") }
+        if (localCreatedEvents.isEmpty()) {
+            _eventsFlow.value = serverEvents
+        } else {
+            val serverMap = serverEvents.associateBy { it.id }
+            val mergedList = serverEvents.toMutableList()
+            localCreatedEvents.forEach { localEvt ->
+                if (!serverMap.containsKey(localEvt.id)) {
+                    mergedList.add(localEvt)
+                }
+            }
+            _eventsFlow.value = mergedList
         }
-        _eventsFlow.value = (serverEvents + localCreated).distinctBy { it.id }
     }
 
-    suspend fun fetchEventsInRegion(
-        minLat: Double? = null,
-        maxLat: Double? = null,
-        minLng: Double? = null,
-        maxLng: Double? = null,
-        category: String? = null
-    ): Result<List<Event>> {
+    suspend fun fetchEventsInRegion(): Result<List<Event>> {
         return try {
+            val token = tokenManager?.getAccessToken()
             val response: ApiResponse<List<EventDto>> = client.get("$baseUrl/api/v1/events") {
-                minLat?.let { parameter("minLat", it) }
-                maxLat?.let { parameter("maxLat", it) }
-                minLng?.let { parameter("minLng", it) }
-                maxLng?.let { parameter("maxLng", it) }
-                category?.let { parameter("category", it) }
+                if (!token.isNullOrBlank()) {
+                    header("Authorization", "Bearer $token")
+                }
             }.body()
-
             val dtoList = response.data ?: emptyList()
             val models = dtoList.map { it.toModel() }
             mergeWithLocalCreatedEvents(models)
@@ -186,6 +207,7 @@ class KtorEventsRepositoryImpl(
         // Post to remote Ktor backend in background
         scope.launch {
             try {
+                val token = tokenManager?.getAccessToken()
                 val request = CreateEventRequest(
                     title = title,
                     description = description,
@@ -195,18 +217,27 @@ class KtorEventsRepositoryImpl(
                     dateTime = dateTime,
                     photoUrl = photoUrl
                 )
-                val response: ApiResponse<EventDto> = client.post("$baseUrl/api/v1/events") {
+                val httpResponse: HttpResponse = client.post("$baseUrl/api/v1/events") {
                     contentType(ContentType.Application.Json)
-                    setBody(request)
-                }.body()
-
-                val serverDto = response.data
-                if (response.success && serverDto != null) {
-                    val serverModel = serverDto.toModel()
-                    _eventsFlow.value = _eventsFlow.value.map {
-                        if (it.id == localId) serverModel else it
+                    if (!token.isNullOrBlank()) {
+                        header("Authorization", "Bearer $token")
                     }
-                    println("[OkHttp] Confirmed event on Ktor server: ${serverModel.id}")
+                    setBody(request)
+                }
+
+                if (httpResponse.status.value in 200..299) {
+                    val response: ApiResponse<EventDto> = httpResponse.body()
+                    val serverDto = response.data
+                    if (serverDto != null) {
+                        val serverModel = serverDto.toModel()
+                        _eventsFlow.value = _eventsFlow.value.map {
+                            if (it.id == localId) serverModel else it
+                        }
+                        println("[OkHttp] Confirmed event creation on Ktor server (${httpResponse.status}): ${serverModel.id}")
+                    }
+                } else {
+                    val errorText = httpResponse.bodyAsText()
+                    println("[NetworkError] Create event failed (${httpResponse.status}): $errorText")
                 }
                 fetchEventsInRegion()
             } catch (e: Exception) {
@@ -240,8 +271,28 @@ class KtorEventsRepositoryImpl(
 
         scope.launch {
             try {
-                client.put("$baseUrl/api/v1/events/$eventId") {
+                val token = tokenManager?.getAccessToken()
+                val currentEvt = updatedList.find { it.id == eventId }
+                val request = CreateEventRequest(
+                    title = title,
+                    description = description,
+                    category = category.name,
+                    latitude = currentEvt?.latitude ?: 0.0,
+                    longitude = currentEvt?.longitude ?: 0.0,
+                    dateTime = dateTime,
+                    photoUrl = photoUrl
+                )
+                val httpResponse: HttpResponse = client.put("$baseUrl/api/v1/events/$eventId") {
                     contentType(ContentType.Application.Json)
+                    if (!token.isNullOrBlank()) {
+                        header("Authorization", "Bearer $token")
+                    }
+                    setBody(request)
+                }
+                if (httpResponse.status.value in 200..299) {
+                    println("[OkHttp] Updated event $eventId on Ktor server (${httpResponse.status}).")
+                } else {
+                    println("[NetworkError] Update event failed (${httpResponse.status}): ${httpResponse.bodyAsText()}")
                 }
                 fetchEventsInRegion()
             } catch (e: Exception) {
@@ -259,7 +310,17 @@ class KtorEventsRepositoryImpl(
 
         scope.launch {
             try {
-                client.delete("$baseUrl/api/v1/events/$eventId")
+                val token = tokenManager?.getAccessToken()
+                val httpResponse: HttpResponse = client.delete("$baseUrl/api/v1/events/$eventId") {
+                    if (!token.isNullOrBlank()) {
+                        header("Authorization", "Bearer $token")
+                    }
+                }
+                if (httpResponse.status.value in 200..299) {
+                    println("[OkHttp] Deleted event $eventId on Ktor server (${httpResponse.status}).")
+                } else {
+                    println("[NetworkError] Delete event failed (${httpResponse.status}): ${httpResponse.bodyAsText()}")
+                }
                 fetchEventsInRegion()
             } catch (e: Exception) {
                 println("[NetworkError] Failed to delete event on Ktor: ${e.message}")
@@ -270,7 +331,7 @@ class KtorEventsRepositoryImpl(
     }
 
     override fun purgeExpiredEvents() {
-        // No-op for remote API or handled by server
+        // Handled by server or background sync
     }
 
     override fun joinEvent(eventId: String, user: User): Event? {
@@ -283,8 +344,18 @@ class KtorEventsRepositoryImpl(
 
         scope.launch {
             try {
-                client.post("$baseUrl/api/v1/events/$eventId/join")
-                println("[OkHttp] Joined event $eventId on Ktor server.")
+                val token = tokenManager?.getAccessToken()
+                println("[OkHttp] Sending joinEvent request to server: $baseUrl/api/v1/events/$eventId/join (Token present: ${!token.isNullOrBlank()})")
+                val httpResponse: HttpResponse = client.post("$baseUrl/api/v1/events/$eventId/join") {
+                    if (!token.isNullOrBlank()) {
+                        header("Authorization", "Bearer $token")
+                    }
+                }
+                if (httpResponse.status.value in 200..299) {
+                    println("[OkHttp] Successfully joined event $eventId on Ktor server (${httpResponse.status}).")
+                } else {
+                    println("[NetworkError] Join event failed (${httpResponse.status}): ${httpResponse.bodyAsText()}")
+                }
                 fetchEventsInRegion()
             } catch (e: Exception) {
                 println("[NetworkError] Failed to send joinEvent to Ktor: ${e.message}")
@@ -304,8 +375,18 @@ class KtorEventsRepositoryImpl(
 
         scope.launch {
             try {
-                client.post("$baseUrl/api/v1/events/$eventId/leave")
-                println("[OkHttp] Left event $eventId on Ktor server.")
+                val token = tokenManager?.getAccessToken()
+                println("[OkHttp] Sending leaveEvent request to server: $baseUrl/api/v1/events/$eventId/leave (Token present: ${!token.isNullOrBlank()})")
+                val httpResponse: HttpResponse = client.post("$baseUrl/api/v1/events/$eventId/leave") {
+                    if (!token.isNullOrBlank()) {
+                        header("Authorization", "Bearer $token")
+                    }
+                }
+                if (httpResponse.status.value in 200..299) {
+                    println("[OkHttp] Successfully left event $eventId on Ktor server (${httpResponse.status}).")
+                } else {
+                    println("[NetworkError] Leave event failed (${httpResponse.status}): ${httpResponse.bodyAsText()}")
+                }
                 fetchEventsInRegion()
             } catch (e: Exception) {
                 println("[NetworkError] Failed to send leaveEvent to Ktor: ${e.message}")

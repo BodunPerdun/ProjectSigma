@@ -30,7 +30,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,7 +57,8 @@ fun NotificationsBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = modifier
     ) {
         Column(
@@ -68,7 +68,8 @@ fun NotificationsBottomSheet(
         ) {
             Text(
                 text = s.notificationsTitle,
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -86,7 +87,7 @@ fun NotificationsBottomSheet(
                     Text(
                         text = s.noNotificationsMsg,
                         fontSize = 14.sp,
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -101,7 +102,7 @@ fun NotificationsBottomSheet(
                         Card(
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = if (!item.isRead) Color(0xFFE3F2FD) else Color(0xFFF8F9FA)
+                                containerColor = if (!item.isRead) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                             ),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                             modifier = Modifier
@@ -137,12 +138,13 @@ fun NotificationsBottomSheet(
                                         Text(
                                             text = item.localizedTitle,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
                                             text = item.localizedMessage,
                                             fontSize = 12.sp,
-                                            color = Color.DarkGray
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
 
@@ -151,7 +153,7 @@ fun NotificationsBottomSheet(
                                     Text(
                                         text = item.timestampText,
                                         fontSize = 10.sp,
-                                        color = Color.Gray
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
 

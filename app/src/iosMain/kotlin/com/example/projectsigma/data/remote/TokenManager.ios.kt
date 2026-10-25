@@ -1,19 +1,35 @@
 package com.example.projectsigma.data.remote
 
 actual class TokenManager {
-    private var accessTokenMemory: String? = null
-    private var refreshTokenMemory: String? = null
+    private var accessToken: String? = null
+    private var refreshToken: String? = null
+    private var userId: String? = null
 
-    actual fun getAccessToken(): String? = accessTokenMemory
-    actual fun getRefreshToken(): String? = refreshTokenMemory
+    actual fun getAccessToken(): String? {
+        if (accessToken != null && (accessToken!!.isBlank() || accessToken == "null" || !accessToken!!.contains("."))) {
+            clearTokens()
+            return null
+        }
+        return accessToken
+    }
 
-    actual fun saveTokens(accessToken: String, refreshToken: String) {
-        accessTokenMemory = accessToken
-        refreshTokenMemory = refreshToken
+    actual fun getRefreshToken(): String? {
+        return refreshToken
+    }
+
+    actual fun getUserId(): String? {
+        return userId
+    }
+
+    actual fun saveTokens(accessToken: String, refreshToken: String, userId: String) {
+        this.accessToken = accessToken
+        this.refreshToken = refreshToken
+        this.userId = userId
     }
 
     actual fun clearTokens() {
-        accessTokenMemory = null
-        refreshTokenMemory = null
+        accessToken = null
+        refreshToken = null
+        userId = null
     }
 }

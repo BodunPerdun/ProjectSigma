@@ -27,7 +27,8 @@ data class TokenResponse(
     @SerialName("access_token") val accessTokenSnake: String? = null,
     val refreshToken: String? = null,
     @SerialName("refresh_token") val refreshTokenSnake: String? = null,
-    val tokenType: String = "Bearer"
+    val tokenType: String = "Bearer",
+    val user: UserProfileDto? = null
 ) {
     val validAccessToken: String
         get() = accessToken ?: accessTokenSnake ?: ""

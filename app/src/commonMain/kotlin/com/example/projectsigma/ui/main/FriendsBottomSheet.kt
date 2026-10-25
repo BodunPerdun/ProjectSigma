@@ -30,6 +30,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +46,7 @@ import com.example.projectsigma.model.localizedTitle
 import com.example.projectsigma.ui.components.UserAvatar
 import com.example.projectsigma.ui.main.components.ParticipantProfileSheet
 import com.example.projectsigma.viewmodel.AuthViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,6 +61,7 @@ fun FriendsBottomSheet(
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coroutineScope = rememberCoroutineScope()
 
     val currentLanguage by AppLanguageManager.currentLanguage.collectAsState()
     val s = AppLanguageManager.strings
@@ -255,7 +258,9 @@ fun FriendsBottomSheet(
                             ) {
                                 items(coAttendees) { (coAttendeeUser, eventOrDistanceInfo) ->
                                     val isFriend = currentUser.friends.contains(coAttendeeUser.id)
-                                    val isPending = friendRequestService?.isRequestPending(currentUser.id, coAttendeeUser.id) == true
+                                    var isPendingState by remember(currentUser.id, coAttendeeUser.id) {
+                                        mutableStateOf(friendRequestService?.isRequestPending(currentUser.id, coAttendeeUser.id) == true)
+                                    }
 
                                     Card(
                                         shape = RoundedCornerShape(16.dp),
@@ -316,22 +321,27 @@ fun FriendsBottomSheet(
                                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                                     )
                                                 }
-                                            } else if (isPending) {
-                                                Surface(
-                                                    color = Color(0xFFFFF3CD),
-                                                    shape = RoundedCornerShape(14.dp)
-                                                ) {
-                                                    Text(
-                                                        text = s.pendingRequestBtn,
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color(0xFF856404),
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                            } else if (isPendingState) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        isPendingState = false
+                                                        coroutineScope.launch {
+                                                            friendRequestService?.cancelFriendRequest(currentUser.id, coAttendeeUser.id)
+                                                        }
+                                                    },
+                                                    shape = RoundedCornerShape(16.dp),
+                                                    colors = ButtonDefaults.outlinedButtonColors(
+                                                        contentColor = MaterialTheme.colorScheme.error
                                                     )
+                                                ) {
+                                                    Text("✕ Cancel", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                                 }
                                             } else {
                                                 Button(
-                                                    onClick = { onAddFriend(coAttendeeUser.id) },
+                                                    onClick = {
+                                                        isPendingState = true
+                                                        onAddFriend(coAttendeeUser.id)
+                                                    },
                                                     shape = RoundedCornerShape(16.dp)
                                                 ) {
                                                     Text(s.addFriendBtn, fontSize = 11.sp)
